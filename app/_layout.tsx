@@ -1,5 +1,5 @@
 import "@/global.css";
-import { Stack, useRouter } from "expo-router";
+import { Stack, useRootNavigationState, useRouter } from "expo-router";
 import { SQLiteProvider } from "expo-sqlite";
 import * as Linking from "expo-linking";
 import { Suspense, useEffect } from "react";
@@ -46,6 +46,9 @@ export default function RootLayout() {
  */
 function DeepLinkHandler() {
   const router = useRouter();
+  // Navigation must exist before we push; on cold starts the link can
+  // arrive while the tree is still mounting, so gate on readiness.
+  const rootState = useRootNavigationState();
 
   useEffect(() => {
     const handle = (url: string | null | undefined) => {
@@ -65,10 +68,11 @@ function DeepLinkHandler() {
         // Malformed URL: stay where we are.
       }
     };
+    if (!rootState?.key) return;
     Linking.getInitialURL().then(handle);
     const sub = Linking.addEventListener("url", (event) => handle(event.url));
     return () => sub.remove();
-  }, [router]);
+  }, [router, rootState?.key]);
 
   return null;
 }
