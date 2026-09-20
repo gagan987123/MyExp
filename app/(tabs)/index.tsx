@@ -10,10 +10,6 @@ import {
   listExpenses,
   type Expense,
 } from "@/lib/service";
-import {
-  getLastIncomingURL,
-  subscribeIncomingURL,
-} from "@/lib/linkDebug";
 
 function formatINR(amount: number): string {
   try {
@@ -36,12 +32,6 @@ export default function HomeScreen() {
   const router = useRouter();
   const [monthTotal, setMonthTotal] = useState(0);
   const [recent, setRecent] = useState<Expense[]>([]);
-  const [lastLink, setLastLink] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLastLink(getLastIncomingURL());
-    return subscribeIncomingURL(() => setLastLink(getLastIncomingURL()));
-  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -101,9 +91,6 @@ export default function HomeScreen() {
             </Text>
             <Text className="home-balance-date">{monthName}</Text>
           </View>
-          <Text className="home-empty-state" numberOfLines={3}>
-            link: {lastLink ?? "none received"}
-          </Text>
         </View>
 
         <View className="list-head">

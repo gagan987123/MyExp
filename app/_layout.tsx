@@ -1,12 +1,14 @@
 import "@/global.css";
-import { Stack, useRootNavigationState, useRouter } from "expo-router";
+import { Stack } from "expo-router";
 import { SQLiteProvider } from "expo-sqlite";
-import * as Linking from "expo-linking";
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { DATABASE_NAME, migrateDbIfNeeded } from "@/lib/db";
-import { recordIncomingURL } from "@/lib/linkDebug";
+import {
+  DATABASE_NAME,
+  migrateDbIfNeeded,
+  resolveDatabaseDirectory,
+} from "@/lib/db";
 
 function DbLoadingFallback() {
   return (
@@ -24,57 +26,32 @@ function DbLoadingFallback() {
 }
 
 export default function RootLayout() {
+  // Resolve the shared App Group folder (if entitled) and migrate the
+  // sandbox database over on first run — before SQLiteProvider opens it.
+  const [dbDirectory, setDbDirectory] = useState<string | undefined>(undefined);
+  const [dbReady, setDbReady] = useState(false);
+
+  useEffect(() => {
+    resolveDatabaseDirectory()
+      .then(setDbDirectory)
+      .catch(() => setDbDirectory(undefined))
+      .finally(() => setDbReady(true));
+  }, []);
+
+  if (!dbReady) return <DbLoadingFallback />;
+
   return (
     <SafeAreaProvider>
       <Suspense fallback={<DbLoadingFallback />}>
         <SQLiteProvider
           databaseName={DATABASE_NAME}
+          directory={dbDirectory}
           onInit={migrateDbIfNeeded}
           useSuspense
         >
-          <DeepLinkHandler />
           <Stack screenOptions={{ headerShown: false }} />
         </SQLiteProvider>
       </Suspense>
     </SafeAreaProvider>
   );
-}
-
-/**
- * Siri / Shortcuts intake can arrive as expensetracker://add-expense?...,
- * where the route sits in the URL host position. This handler routes it
- * explicitly so saving never depends on implicit link-to-route matching.
- */
-function DeepLinkHandler() {
-  const router = useRouter();
-  // Navigation must exist before we push; on cold starts the link can
-  // arrive while the tree is still mounting, so gate on readiness.
-  const rootState = useRootNavigationState();
-
-  useEffect(() => {
-    const handle = (url: string | null | undefined) => {
-      recordIncomingURL(url);
-      if (!url) return;
-      try {
-        const parsed = Linking.parse(url);
-        const first = `${parsed.hostname ?? ""}/${parsed.path ?? ""}`
-          .split("/")
-          .filter(Boolean)[0];
-        if (first === "add-expense") {
-          router.push({
-            pathname: "/(tabs)/add-expense",
-            params: (parsed.queryParams ?? {}) as Record<string, string>,
-          });
-        }
-      } catch {
-        // Malformed URL: stay where we are.
-      }
-    };
-    if (!rootState?.key) return;
-    Linking.getInitialURL().then(handle);
-    const sub = Linking.addEventListener("url", (event) => handle(event.url));
-    return () => sub.remove();
-  }, [router, rootState?.key]);
-
-  return null;
 }
