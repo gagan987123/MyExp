@@ -26,7 +26,11 @@ export default function AddExpenseScreen() {
   }>();
 
   const paramAmount = params.amount != null ? Number(params.amount) : undefined;
-  const paramCategory = matchCategory(params.category) ?? undefined;
+  // Voice intake defaults an unmatched/missing category to Other so a
+  // Siri command with just an amount still saves (user recategorizes later).
+  const paramCategory =
+    matchCategory(params.category) ??
+    (params.amount != null || params.note != null ? "other" : undefined);
   const hasParams =
     params.amount != null || params.category != null || params.note != null;
   const autoSubmit =
