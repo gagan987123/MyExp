@@ -23,7 +23,8 @@
             ]
           }
         }
-      }
+      },
+      "deploymentTarget": "18.0"
     },
     "android": {
       "adaptiveIcon": {
@@ -47,7 +48,8 @@
       "expo-splash-screen",
       "expo-status-bar",
       "expo-web-browser",
-      "expo-sqlite"
+      "expo-sqlite",
+      "./plugins/withSiriIntents"
     ],
     "experiments": {
       "typedRoutes": true,
