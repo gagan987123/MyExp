@@ -61,7 +61,7 @@ struct AddExpenseIntent: AppIntent {
   }
 
   @MainActor
-  func perform() async throws -> some IntentResult & OpensIntent {
+  func perform() async throws -> some IntentResult {
     var items = [URLQueryItem(name: "amount", value: String(amount))]
     if let category, !category.isEmpty {
       items.append(URLQueryItem(name: "category", value: category))
@@ -77,7 +77,8 @@ struct AddExpenseIntent: AppIntent {
     guard let url = components.url else {
       throw AddExpenseError.badURL
     }
-    return .result(opensIntent: OpenURLIntent(url))
+    await UIApplication.shared.open(url)
+    return .result()
   }
 }
 `;
