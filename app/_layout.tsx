@@ -6,6 +6,7 @@ import { Suspense, useEffect } from "react";
 import { Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { DATABASE_NAME, migrateDbIfNeeded } from "@/lib/db";
+import { recordIncomingURL } from "@/lib/linkDebug";
 
 function DbLoadingFallback() {
   return (
@@ -52,6 +53,7 @@ function DeepLinkHandler() {
 
   useEffect(() => {
     const handle = (url: string | null | undefined) => {
+      recordIncomingURL(url);
       if (!url) return;
       try {
         const parsed = Linking.parse(url);
