@@ -1,33 +1,73 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
+import { Tabs } from "expo-router";
+import { Text, View } from "react-native";
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+function TabIcon({ label, focused }: { label: string; focused: boolean }) {
+  return (
+    <View className="tabs-item">
+      <Text className="tabs-emoji">{label}</Text>
+      <View
+        className={`tabs-underline ${focused ? "tabs-underline-active" : ""}`}
+      />
+    </View>
+  );
+}
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
+export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
+        tabBarShowLabel: false,
+        tabBarStyle: {
+          backgroundColor: "#fff9e3",
+          borderTopWidth: 0,
+          height: 76,
+          paddingTop: 8,
+        },
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: "Home",
+          tabBarIcon: ({ focused }) => (
+            <View className="tabs-icon">
+              <TabIcon label="🏠" focused={focused} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="add-expense"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: "Add",
+          tabBarIcon: ({ focused }) => (
+            <View className="tabs-icon">
+              <TabIcon label="＋" focused={focused} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="expenses"
+        options={{
+          title: "Expenses",
+          tabBarIcon: ({ focused }) => (
+            <View className="tabs-icon">
+              <TabIcon label="🧾" focused={focused} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: "Settings",
+          tabBarIcon: ({ focused }) => (
+            <View className="tabs-icon">
+              <TabIcon label="⚙️" focused={focused} />
+            </View>
+          ),
         }}
       />
     </Tabs>

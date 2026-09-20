@@ -1,98 +1,137 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import "@/global.css";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useSQLiteContext } from "expo-sqlite";
+import { useCallback, useState } from "react";
+import { Pressable, ScrollView, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  CATEGORIES,
+  getMonthTotal,
+  listExpenses,
+  type Expense,
+} from "@/lib/service";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
-
-export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
-
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
-  );
+function formatINR(amount: number): string {
+  try {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(amount);
+  } catch {
+    return `Rs.${amount}`;
+  }
 }
 
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
+function categoryMeta(id: string) {
+  return CATEGORIES.find((c) => c.id === id) ?? { id, name: id, icon: "📦" };
+}
+
+export default function HomeScreen() {
+  const db = useSQLiteContext();
+  const router = useRouter();
+  const [monthTotal, setMonthTotal] = useState(0);
+  const [recent, setRecent] = useState<Expense[]>([]);
+
+  const load = useCallback(async () => {
+    try {
+      const [total, all] = await Promise.all([
+        getMonthTotal(db),
+        listExpenses(db),
+      ]);
+      setMonthTotal(total);
+      setRecent(all.slice(0, 5));
+    } catch {
+      // v1: silent fail, empty state covers it
+    }
+  }, [db]);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
+
+  const monthName = new Date().toLocaleString("en-IN", { month: "long" });
+
+  return (
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: "#fff9e3" }}
+      edges={["top", "bottom"]}
+    >
+      <ScrollView style={{ flex: 1, padding: 20 }}>
+        <View className="home-header mt-2">
+          <View className="home-user">
+            <View
+              className="home-avatar"
+              style={{
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "#ea7a53",
+              }}
+            >
+              <Text style={{ fontSize: 28 }}>💰</Text>
+            </View>
+            <Text className="home-user-name">MyExp</Text>
+          </View>
+          <Pressable
+            className="home-add-icon"
+            style={{ alignItems: "center", justifyContent: "center" }}
+            onPress={() => router.push("/(tabs)/add-expense")}
+          >
+            <Text className="text-3xl">＋</Text>
+          </Pressable>
+        </View>
+
+        <View className="home-balance-card">
+          <Text className="home-balance-label">Spent in {monthName}</Text>
+          <View className="home-balance-row">
+            <Text className="home-balance-amount">
+              {formatINR(monthTotal)}
+            </Text>
+            <Text className="home-balance-date">{monthName}</Text>
+          </View>
+        </View>
+
+        <View className="list-head">
+          <Text className="list-title">Recent</Text>
+          <Pressable
+            className="list-action"
+            onPress={() => router.push("/(tabs)/expenses")}
+          >
+            <Text className="list-action-text">See all</Text>
+          </Pressable>
+        </View>
+
+        {recent.length === 0 ? (
+          <Text className="home-empty-state">
+            No expenses yet. Tap ＋ to add your first one — e.g. ₹100 chai.
+          </Text>
+        ) : (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+            {recent.map((e) => {
+              const meta = categoryMeta(e.category);
+              return (
+                <View key={e.id} className="upcoming-card" style={{ marginRight: 0 }}>
+                  <View className="upcoming-row">
+                    <Text className="upcoming-icon">{meta.icon}</Text>
+                    <View>
+                      <Text className="upcoming-price">
+                        {formatINR(e.amount)}
+                      </Text>
+                      <Text className="upcoming-meta">{meta.name}</Text>
+                    </View>
+                  </View>
+                  <Text className="upcoming-name" numberOfLines={1}>
+                    {e.note ?? meta.name}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
