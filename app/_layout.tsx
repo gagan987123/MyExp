@@ -1,7 +1,8 @@
 import "@/global.css";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { SQLiteProvider } from "expo-sqlite";
-import { Suspense } from "react";
+import * as Linking from "expo-linking";
+import { Suspense, useEffect } from "react";
 import { Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { DATABASE_NAME, migrateDbIfNeeded } from "@/lib/db";
@@ -30,9 +31,44 @@ export default function RootLayout() {
           onInit={migrateDbIfNeeded}
           useSuspense
         >
+          <DeepLinkHandler />
           <Stack screenOptions={{ headerShown: false }} />
         </SQLiteProvider>
       </Suspense>
     </SafeAreaProvider>
   );
+}
+
+/**
+ * Siri / Shortcuts intake can arrive as expensetracker://add-expense?...,
+ * where the route sits in the URL host position. This handler routes it
+ * explicitly so saving never depends on implicit link-to-route matching.
+ */
+function DeepLinkHandler() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const handle = (url: string | null | undefined) => {
+      if (!url) return;
+      try {
+        const parsed = Linking.parse(url);
+        const first = `${parsed.hostname ?? ""}/${parsed.path ?? ""}`
+          .split("/")
+          .filter(Boolean)[0];
+        if (first === "add-expense") {
+          router.push({
+            pathname: "/(tabs)/add-expense",
+            params: (parsed.queryParams ?? {}) as Record<string, string>,
+          });
+        }
+      } catch {
+        // Malformed URL: stay where we are.
+      }
+    };
+    Linking.getInitialURL().then(handle);
+    const sub = Linking.addEventListener("url", (event) => handle(event.url));
+    return () => sub.remove();
+  }, [router]);
+
+  return null;
 }
