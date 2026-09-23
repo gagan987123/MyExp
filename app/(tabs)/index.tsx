@@ -114,7 +114,11 @@ export default function HomeScreen() {
             {recent.map((e) => {
               const meta = categoryMeta(e.category);
               return (
-                <View key={e.id} className="upcoming-card" style={{ marginRight: 0 }}>
+                <View
+                  key={e.id}
+                  className="upcoming-card"
+                  style={{ marginRight: 0, width: "48%", aspectRatio: 1 }}
+                >
                   <View className="upcoming-row">
                     <CategoryIcon name={meta.icon} />
                     <View>
