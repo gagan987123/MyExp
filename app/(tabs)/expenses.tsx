@@ -5,7 +5,7 @@ import { useCallback, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryIcon from "@/components/CategoryIcon";
-import { CATEGORIES, getMonthCategoryTotals, getMonthIncome, listExpenses, type CategoryId, type Expense } from "@/lib/service";
+import { CATEGORIES, getMonthCategoryTotals, listExpenses, type CategoryId, type Expense } from "@/lib/service";
 
 function formatINR(amount: number): string {
   try {
@@ -60,28 +60,24 @@ export default function ExpensesScreen() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [count, setCount] = useState(0);
   const [monthTotal, setMonthTotal] = useState(0);
-  const [monthIncome, setMonthIncome] = useState(0);
   const [monthBreakdown, setMonthBreakdown] = useState<
     { id: CategoryId; amount: number }[]
   >([]);
 
   const load = useCallback(async () => {
     try {
-      const [all, month, income] = await Promise.all([
+      const [all, month] = await Promise.all([
         listExpenses(db),
         getMonthCategoryTotals(db),
-        getMonthIncome(db),
       ]);
       setGroups(groupByDay(all, new Date()));
       setCount(all.length);
       setMonthTotal(month.total);
-      setMonthIncome(income);
       setMonthBreakdown(month.byCategory);
     } catch {
       setGroups([]);
       setCount(0);
       setMonthTotal(0);
-      setMonthIncome(0);
       setMonthBreakdown([]);
     }
   }, [db]);
@@ -104,42 +100,53 @@ export default function ExpensesScreen() {
         </View>
 
         <View className="home-balance-card">
-          <Text className="home-balance-label">
-            Spent in{" "}
-            {new Date().toLocaleString("en-IN", { month: "long" })}
-          </Text>
-          <Text className="home-balance-amount">{formatINR(monthTotal)}</Text>
-          {monthIncome > 0 ? (
-            <Text className="home-balance-date" style={{ marginTop: 4 }}>
-              Earned {formatINR(monthIncome)}
-            </Text>
-          ) : null}
-          {monthBreakdown.map((b) => {
-            const meta = categoryMeta(b.id);
-            const pct =
-              monthTotal > 0 ? Math.round((b.amount / monthTotal) * 100) : 0;
-            return (
-              <Pressable
-                key={b.id}
-                className="home-balance-row"
-                style={{ marginTop: 8 }}
-                onPress={() => router.push(`/expense/category/${b.id}`)}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <CategoryIcon name={meta.icon} size={16} box={30} tone="dark" />
-                  <Text className="home-balance-date">
-                    {meta.name} · {pct}%
-                  </Text>
-                </View>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Text className="home-balance-date">
-                    {formatINR(b.amount)}
-                  </Text>
-                  <Text className="home-balance-date">›</Text>
-                </View>
-              </Pressable>
-            );
-          })}
+          <View style={{ flexDirection: "row", gap: 12 }}>
+            <View style={{ flex: 0.95, justifyContent: "center" }}>
+              <Text className="home-balance-label">
+                Spent in{" "}
+                {new Date().toLocaleString("en-IN", { month: "long" })}
+              </Text>
+              <Text className="home-balance-amount">
+                {formatINR(monthTotal)}
+              </Text>
+            </View>
+            <View style={{ flex: 1.15, justifyContent: "center", gap: 10 }}>
+              {monthBreakdown.map((b) => {
+                const meta = categoryMeta(b.id);
+                const pct =
+                  monthTotal > 0 ? Math.round((b.amount / monthTotal) * 100) : 0;
+                return (
+                  <Pressable
+                    key={b.id}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                    onPress={() => router.push(`/expense/category/${b.id}`)}
+                  >
+                    <CategoryIcon name={meta.icon} size={15} box={28} tone="dark" />
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        className="home-balance-date"
+                        numberOfLines={1}
+                        style={{ fontSize: 15 }}
+                      >
+                        {meta.name} · {pct}%
+                      </Text>
+                      <Text
+                        className="home-balance-date"
+                        style={{ fontWeight: "700", fontSize: 16 }}
+                      >
+                        {formatINR(b.amount)}
+                      </Text>
+                    </View>
+                    <Text className="home-balance-date">›</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
         </View>
 
         {groups.length === 0 ? (

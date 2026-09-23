@@ -11,18 +11,34 @@ const WIDGET_SWIFT = `import SQLite3
 import SwiftUI
 import WidgetKit
 
+struct CategorySlice: Identifiable {
+  let id: String
+  let name: String
+  let amount: Double
+  let pct: Int
+  let color: Color
+}
+
+let CATEGORY_COLORS: [String: Color] = [
+  "food": .orange, "transport": .blue, "petrol": .yellow,
+  "shopping": .purple, "bills": .green, "entertainment": .pink,
+  "health": .teal, "travel": .indigo, "salary": .green, "other": .gray,
+]
+let CATEGORY_NAMES = ["food": "Food", "transport": "Transport", "petrol": "Petrol", "shopping": "Shopping", "bills": "Bills", "entertainment": "Entertainment", "health": "Health", "travel": "Travel", "salary": "Salary", "other": "Other"]
+
 struct MonthEntry: TimelineEntry {
   let date: Date
   let spent: Double
-  let earned: Double
-  let topName: String
-  let topAmount: Double
-  let topPct: Int
+  let slices: [CategorySlice]
 }
 
 struct MonthProvider: TimelineProvider {
   func placeholder(in context: Context) -> MonthEntry {
-    MonthEntry(date: Date(), spent: 8420, earned: 50000, topName: "Food", topAmount: 4200, topPct: 50)
+    MonthEntry(date: Date(), spent: 8420, slices: [
+      CategorySlice(id: "food", name: "Food", amount: 4200, pct: 50, color: .orange),
+      CategorySlice(id: "bills", name: "Bills", amount: 2500, pct: 30, color: .green),
+      CategorySlice(id: "transport", name: "Transport", amount: 1720, pct: 20, color: .blue),
+    ])
   }
 
   func getSnapshot(in context: Context, completion: @escaping (MonthEntry) -> Void) {
@@ -40,7 +56,7 @@ struct MonthProvider: TimelineProvider {
 
   private func readMonth() -> MonthEntry {
     let now = Date()
-    let fallback = MonthEntry(date: now, spent: 0, earned: 0, topName: "No data", topAmount: 0, topPct: 0)
+    let fallback = MonthEntry(date: now, spent: 0, slices: [])
     guard let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "${APP_GROUP_ID}") else {
       return fallback
     }
@@ -54,7 +70,7 @@ struct MonthProvider: TimelineProvider {
     let formatter = DateFormatter()
     formatter.dateFormat = "yyyy-MM"
     let prefix = formatter.string(from: now)
-    let sql = "SELECT kind, category, SUM(amount) FROM expenses WHERE substr(date, 1, 7) = ? GROUP BY kind, category;"
+    let sql = "SELECT category, SUM(amount) FROM expenses WHERE kind = 'expense' AND substr(date, 1, 7) = ? GROUP BY category ORDER BY SUM(amount) DESC LIMIT 4;"
     var stmt: OpaquePointer?
     guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
       return fallback
@@ -62,26 +78,23 @@ struct MonthProvider: TimelineProvider {
     defer { sqlite3_finalize(stmt) }
     sqlite3_bind_text(stmt, 1, (prefix as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
     var spent = 0.0
-    var earned = 0.0
-    var topName = "No data"
-    var topAmount = 0.0
-    let names = ["food": "Food", "transport": "Transport", "petrol": "Petrol", "shopping": "Shopping", "bills": "Bills", "entertainment": "Entertainment", "health": "Health", "travel": "Travel", "salary": "Salary", "other": "Other"]
+    var rows: [(String, Double)] = []
     while sqlite3_step(stmt) == SQLITE_ROW {
-      let kind = String(cString: sqlite3_column_text(stmt, 0))
-      let category = String(cString: sqlite3_column_text(stmt, 1))
-      let sum = sqlite3_column_double(stmt, 2)
-      if kind == "income" {
-        earned += sum
-      } else {
-        spent += sum
-        if sum > topAmount {
-          topAmount = sum
-          topName = names[category] ?? category
-        }
-      }
+      let category = String(cString: sqlite3_column_text(stmt, 0))
+      let sum = sqlite3_column_double(stmt, 1)
+      spent += sum
+      rows.append((category, sum))
     }
-    let pct = spent > 0 ? Int((topAmount / spent * 100).rounded()) : 0
-    return MonthEntry(date: now, spent: spent, earned: earned, topName: topName, topAmount: topAmount, topPct: pct)
+    let slices = rows.map { (category, sum) in
+      CategorySlice(
+        id: category,
+        name: CATEGORY_NAMES[category] ?? category,
+        amount: sum,
+        pct: spent > 0 ? Int((sum / spent * 100).rounded()) : 0,
+        color: CATEGORY_COLORS[category] ?? .gray
+      )
+    }
+    return MonthEntry(date: now, spent: spent, slices: slices)
   }
 }
 
@@ -101,28 +114,26 @@ struct SmallWidgetView: View {
 struct MediumWidgetView: View {
   var entry: MonthEntry
   var body: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      HStack {
-        Text("MyExp · this month").font(.caption).foregroundStyle(.secondary)
+    HStack(spacing: 12) {
+      VStack(alignment: .leading, spacing: 2) {
+        Text("Spent").font(.caption).foregroundStyle(.secondary)
+        Text("₹\\(Int(entry.spent))").font(.title2).bold()
         Spacer()
-        Text("Bal ₹\\(Int(entry.earned - entry.spent))").font(.caption).bold()
-      }
-      HStack(alignment: .firstTextBaseline, spacing: 12) {
-        VStack(alignment: .leading) {
-          Text("Spent").font(.caption).foregroundStyle(.secondary)
-          Text("₹\\(Int(entry.spent))").font(.title2).bold()
-        }
-        Spacer()
-        VStack(alignment: .trailing) {
-          Text("Earned").font(.caption).foregroundStyle(.secondary)
-          Text("₹\\(Int(entry.earned))").font(.title2).bold()
-        }
+        Text("this month").font(.caption2).foregroundStyle(.secondary)
       }
       Spacer()
-      HStack {
-        Text(entry.topName).font(.caption).bold()
-        Text("\\(entry.topPct)% · ₹\\(Int(entry.topAmount))").font(.caption).foregroundStyle(.secondary)
-        Spacer()
+      VStack(alignment: .leading, spacing: 6) {
+        ForEach(entry.slices.prefix(4)) { slice in
+          HStack(spacing: 6) {
+            Circle().fill(slice.color).frame(width: 8, height: 8)
+            Text(slice.name).font(.caption).lineLimit(1)
+            Spacer()
+            Text("₹\\(Int(slice.amount))").font(.caption).bold()
+          }
+        }
+        if entry.slices.isEmpty {
+          Text("No spending yet").font(.caption).foregroundStyle(.secondary)
+        }
       }
     }
     .padding()
@@ -228,38 +239,92 @@ module.exports = function withWidget(config) {
 
     const objects = project.hash.project.objects;
     const targets = objects.PBXNativeTarget || {};
-    const exists = Object.values(targets).some(
-      (t) => typeof t === "object" && t.name === `"${TARGET_NAME}"`
+    const targetKey = Object.keys(targets).find(
+      (k) =>
+        !k.endsWith("_comment") &&
+        typeof targets[k] === "object" &&
+        (targets[k].name === `"${TARGET_NAME}"` ||
+          targets[k].name === TARGET_NAME)
     );
-    if (exists) return config;
 
-    const created = project.addTarget(
-      TARGET_NAME,
-      "app_extension",
-      TARGET_NAME,
-      WIDGET_BUNDLE_ID
-    );
-    const widgetGroup = project.addPbxGroup(
-      [],
-      TARGET_NAME,
-      TARGET_NAME
-    );
-    project.addSourceFile(`${TARGET_NAME}/MyExpWidget.swift`, {
-      target: created.uuid,
-    }, widgetGroup.uuid);
-    // The xcode lib drops new entries into the main target's Sources phase.
-    // Relocate every MyExpWidget.swift build entry into the widget target's
-    // own Sources phase (found via the target's buildPhases refs).
-    const objects2 = project.hash.project.objects;
-    const widgetTarget =
-      objects2.PBXNativeTarget[created.uuid] || {};
+    let widgetUuid;
+    if (!targetKey) {
+      const created = project.addTarget(
+        TARGET_NAME,
+        "app_extension",
+        TARGET_NAME,
+        WIDGET_BUNDLE_ID
+      );
+      widgetUuid = created.uuid;
+      const widgetGroup = project.addPbxGroup([], TARGET_NAME, TARGET_NAME);
+      project.addSourceFile(
+        `${TARGET_NAME}/MyExpWidget.swift`,
+        { target: widgetUuid },
+        widgetGroup.uuid
+      );
+
+      const targetObj = objects.PBXNativeTarget[widgetUuid] || {};
+      const listUuid = targetObj.buildConfigurationList;
+      const list = (objects.XCConfigurationList || {})[listUuid] || {};
+      for (const entry of list.buildConfigurations || []) {
+        const cfg = (objects.XCBuildConfiguration || {})[entry.value] || {};
+        cfg.buildSettings = cfg.buildSettings || {};
+        cfg.buildSettings.SWIFT_VERSION = '"5.0"';
+        cfg.buildSettings.IPHONEOS_DEPLOYMENT_TARGET = '"18.0"';
+        cfg.buildSettings.TARGETED_DEVICE_FAMILY = '"1,2"';
+        cfg.buildSettings.CODE_SIGN_ENTITLEMENTS = `"${TARGET_NAME}/${TARGET_NAME}.entitlements"`;
+        cfg.buildSettings.APPLICATION_EXTENSION_API_ONLY = "YES";
+      }
+    } else {
+      widgetUuid = targetKey;
+    }
+
+    // Repair pass (always runs): every MyExpWidget.swift build entry belongs
+    // in the widget target's own Sources phase and nowhere else. The xcode
+    // lib otherwise drops new entries into the main target's phase.
+    // NOTE: re-read the objects fresh — addTarget above may have replaced
+    // the containers, making the earlier `objects` const stale.
+    const fresh = project.hash.project.objects;
+    const makeUuid = () =>
+      "0123456789ABCDEF".split("")
+        .map(() => "0123456789ABCDEF"[Math.floor(Math.random() * 16)])
+        .join("")
+        .slice(0, 24);
+    let widgetTarget = fresh.PBXNativeTarget[widgetUuid] || null;
+    // Ensure the widget target owns a Sources phase (addTarget does not
+    // create build phases, and expo may add them only after plugins run).
+    if (widgetTarget) {
+      widgetTarget.buildPhases = widgetTarget.buildPhases || [];
+      let hasSources = widgetTarget.buildPhases.some(
+        (r) => (fresh.PBXSourcesBuildPhase || {})[r.value]
+      );
+      if (!hasSources) {
+        const phaseUuid = makeUuid();
+        fresh.PBXSourcesBuildPhase = fresh.PBXSourcesBuildPhase || {};
+        fresh.PBXSourcesBuildPhase[phaseUuid] = {
+          isa: "PBXSourcesBuildPhase",
+          buildActionMask: 2147483647,
+          files: [],
+          runOnlyForDeploymentPostprocessing: 0,
+        };
+        fresh.PBXSourcesBuildPhase[`${phaseUuid}_comment`] = "Sources";
+        widgetTarget.buildPhases.push({
+          value: phaseUuid,
+          comment: "Sources",
+        });
+        console.log(
+          `[withWidget] created Sources phase ${phaseUuid.slice(0, 8)}`
+        );
+      }
+    }
     let widgetSourcesUuid = null;
     for (const ref of widgetTarget.buildPhases || []) {
-      const phase = (objects2.PBXSourcesBuildPhase || {})[ref.value];
-      if (phase) widgetSourcesUuid = ref.value;
+      if ((fresh.PBXSourcesBuildPhase || {})[ref.value]) {
+        widgetSourcesUuid = ref.value;
+      }
     }
     if (widgetSourcesUuid) {
-      const fileRefs = Object.entries(objects2.PBXFileReference || {})
+      const fileRefKeys = Object.entries(fresh.PBXFileReference || {})
         .filter(
           ([k, r]) =>
             !k.endsWith("_comment") &&
@@ -268,26 +333,37 @@ module.exports = function withWidget(config) {
             r.path.includes("MyExpWidget.swift")
         )
         .map(([k]) => k);
-      const buildFiles = Object.entries(objects2.PBXBuildFile || {})
+      const buildFileKeys = Object.entries(fresh.PBXBuildFile || {})
         .filter(
           ([k, b]) =>
             !k.endsWith("_comment") &&
             typeof b === "object" &&
-            fileRefs.includes(b.fileRef)
+            fileRefKeys.includes(b.fileRef)
         )
         .map(([k]) => k);
+      console.log(
+        `[withWidget] repairing placement: ${buildFileKeys.length} entries → phase ${widgetSourcesUuid.slice(0, 8)}`
+      );
+      // Dedup: one build entry per file wins; extras cause duplicate-symbol
+      // and duplicate-@main build failures.
+      const keep = buildFileKeys.slice(0, 1);
+      const drop = buildFileKeys.slice(1);
+      for (const gone of drop) {
+        delete fresh.PBXBuildFile[gone];
+        delete fresh.PBXBuildFile[`${gone}_comment`];
+      }
       for (const [phaseUuid, phase] of Object.entries(
-        objects2.PBXSourcesBuildPhase || {}
+        fresh.PBXSourcesBuildPhase || {}
       )) {
         if (phaseUuid.endsWith("_comment")) continue;
         if (phaseUuid === widgetSourcesUuid) continue;
         phase.files = (phase.files || []).filter(
-          (f) => !buildFiles.includes(f.value)
+          (f) => !buildFileKeys.includes(f.value)
         );
       }
-      const widgetPhase = objects2.PBXSourcesBuildPhase[widgetSourcesUuid];
+      const widgetPhase = fresh.PBXSourcesBuildPhase[widgetSourcesUuid];
       widgetPhase.files = widgetPhase.files || [];
-      for (const bf of buildFiles) {
+      for (const bf of keep) {
         if (!widgetPhase.files.some((f) => f.value === bf)) {
           widgetPhase.files.push({
             value: bf,
@@ -295,20 +371,8 @@ module.exports = function withWidget(config) {
           });
         }
       }
-    }
-
-    const targetObj =
-      objects.PBXNativeTarget[created.uuid] || {};
-    const listUuid = targetObj.buildConfigurationList;
-    const list = (objects.XCConfigurationList || {})[listUuid] || {};
-    for (const entry of list.buildConfigurations || []) {
-      const cfg = (objects.XCBuildConfiguration || {})[entry.value] || {};
-      cfg.buildSettings = cfg.buildSettings || {};
-      cfg.buildSettings.SWIFT_VERSION = '"5.0"';
-      cfg.buildSettings.IPHONEOS_DEPLOYMENT_TARGET = '"18.0"';
-      cfg.buildSettings.TARGETED_DEVICE_FAMILY = '"1,2"';
-      cfg.buildSettings.CODE_SIGN_ENTITLEMENTS = `"${TARGET_NAME}/${TARGET_NAME}.entitlements"`;
-      cfg.buildSettings.APPLICATION_EXTENSION_API_ONLY = "YES";
+    } else {
+      console.log("[withWidget] WARNING: widget Sources phase not found");
     }
     return config;
   });
