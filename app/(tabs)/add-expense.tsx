@@ -43,7 +43,7 @@ export default function AddExpenseScreen() {
 
   return (
     <SafeAreaView
-      style={{ flex: 1, backgroundColor: "#fff9e3" }}
+      style={{ flex: 1, backgroundColor: "#0B0E17" }}
       edges={["top", "bottom"]}
     >
       <ScrollView

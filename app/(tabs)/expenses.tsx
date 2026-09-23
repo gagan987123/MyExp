@@ -4,6 +4,7 @@ import { useSQLiteContext } from "expo-sqlite";
 import { useCallback, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import CategoryIcon from "@/components/CategoryIcon";
 import { CATEGORIES, getMonthCategoryTotals, listExpenses, type CategoryId, type Expense } from "@/lib/service";
 
 function formatINR(amount: number): string {
@@ -19,7 +20,7 @@ function formatINR(amount: number): string {
 }
 
 function categoryMeta(id: string) {
-  return CATEGORIES.find((c) => c.id === id) ?? { id, name: id, icon: "📦" };
+  return CATEGORIES.find((c) => c.id === id) ?? { id, name: id, icon: "dots-horizontal" };
 }
 
 function startOfDay(d: Date): Date {
@@ -89,7 +90,7 @@ export default function ExpensesScreen() {
 
   return (
     <SafeAreaView
-      style={{ flex: 1, backgroundColor: "#fff9e3" }}
+      style={{ flex: 1, backgroundColor: "#0B0E17" }}
       edges={["top", "bottom"]}
     >
       <ScrollView style={{ flex: 1, padding: 20 }}>
@@ -110,9 +111,12 @@ export default function ExpensesScreen() {
               monthTotal > 0 ? Math.round((b.amount / monthTotal) * 100) : 0;
             return (
               <View key={b.id} className="home-balance-row" style={{ marginTop: 8 }}>
-                <Text className="home-balance-date">
-                  {meta.icon} {meta.name} · {pct}%
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <CategoryIcon name={meta.icon} size={16} box={30} />
+                  <Text className="home-balance-date">
+                    {meta.name} · {pct}%
+                  </Text>
+                </View>
                 <Text className="home-balance-date">
                   {formatINR(b.amount)}
                 </Text>
@@ -140,14 +144,14 @@ export default function ExpensesScreen() {
                   style={{
                     fontSize: 14,
                     fontWeight: "700",
-                    color: "rgba(0,0,0,0.6)",
+                    color: "rgba(244,241,234,0.6)",
                     textTransform: "uppercase",
                     letterSpacing: 1,
                   }}
                 >
                   {g.label}
                 </Text>
-                <Text style={{ fontWeight: "700", color: "#081126" }}>
+                <Text style={{ fontWeight: "700", color: "#F4F1EA" }}>
                   {formatINR(g.total)}
                 </Text>
               </View>
@@ -162,7 +166,7 @@ export default function ExpensesScreen() {
                     >
                       <View className="sub-head">
                         <View className="sub-main">
-                          <Text className="text-3xl">{meta.icon}</Text>
+                          <CategoryIcon name={meta.icon} />
                           <View className="sub-copy">
                             <Text className="sub-title">{meta.name}</Text>
                             <Text className="sub-meta" numberOfLines={1}>

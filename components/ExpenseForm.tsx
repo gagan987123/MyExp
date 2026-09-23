@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
+import CategoryIcon from "@/components/CategoryIcon";
 import {
   CATEGORIES,
   ValidationError,
@@ -117,7 +118,7 @@ export default function ExpenseForm({
               style={{
                 fontSize: 24,
                 fontWeight: "bold",
-                color: "#081126",
+                color: "#F4F1EA",
                 marginRight: 4,
               }}
             >
@@ -129,6 +130,7 @@ export default function ExpenseForm({
               value={amountText}
               onChangeText={setAmountText}
               placeholder="100"
+              placeholderTextColor="rgba(244,241,234,0.35)"
               keyboardType="decimal-pad"
               returnKeyType="done"
             />
@@ -144,12 +146,14 @@ export default function ExpenseForm({
                 <Pressable
                   key={c.id}
                   className={`category-chip ${active ? "category-chip-active" : ""}`}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
                   onPress={() => setCategory(c.id)}
                 >
+                  <CategoryIcon name={c.icon} size={15} box={26} />
                   <Text
                     className={`category-chip-text ${active ? "category-chip-text-active" : ""}`}
                   >
-                    {c.icon} {c.name}
+                    {c.name}
                   </Text>
                 </Pressable>
               );
@@ -164,6 +168,7 @@ export default function ExpenseForm({
             value={note}
             onChangeText={setNote}
             placeholder="e.g. chai"
+            placeholderTextColor="rgba(244,241,234,0.35)"
             returnKeyType="done"
           />
         </View>
@@ -184,7 +189,7 @@ export default function ExpenseForm({
               <Text className="list-action-text">‹</Text>
             </Pressable>
             <Text
-              style={{ fontSize: 16, fontWeight: "600", color: "#081126" }}
+              style={{ fontSize: 16, fontWeight: "600", color: "#F4F1EA" }}
             >
               {formatDay(date)}
             </Text>

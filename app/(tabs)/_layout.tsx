@@ -1,10 +1,18 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import type { ComponentProps } from "react";
 import { Tabs } from "expo-router";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 
-function TabIcon({ label, focused }: { label: string; focused: boolean }) {
+type GlyphName = ComponentProps<typeof MaterialCommunityIcons>["name"];
+
+function TabIcon({ name, focused }: { name: GlyphName; focused: boolean }) {
   return (
     <View className="tabs-item">
-      <Text className="tabs-emoji">{label}</Text>
+      <MaterialCommunityIcons
+        name={name}
+        size={26}
+        color={focused ? "#ff7a45" : "rgba(244,241,234,0.45)"}
+      />
       <View
         className={`tabs-underline ${focused ? "tabs-underline-active" : ""}`}
       />
@@ -19,9 +27,10 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarShowLabel: false,
         tabBarStyle: {
-          backgroundColor: "#fff9e3",
-          borderTopWidth: 0,
-          height: 76,
+          backgroundColor: "#0B0E17",
+          borderTopWidth: 1,
+          borderTopColor: "rgba(244,241,234,0.1)",
+          height: 82,
           paddingTop: 8,
         },
       }}
@@ -32,7 +41,7 @@ export default function TabsLayout() {
           title: "Home",
           tabBarIcon: ({ focused }) => (
             <View className="tabs-icon">
-              <TabIcon label="🏠" focused={focused} />
+              <TabIcon name="home" focused={focused} />
             </View>
           ),
         }}
@@ -43,7 +52,7 @@ export default function TabsLayout() {
           title: "Add",
           tabBarIcon: ({ focused }) => (
             <View className="tabs-icon">
-              <TabIcon label="＋" focused={focused} />
+              <TabIcon name="plus" focused={focused} />
             </View>
           ),
         }}
@@ -54,7 +63,7 @@ export default function TabsLayout() {
           title: "Expenses",
           tabBarIcon: ({ focused }) => (
             <View className="tabs-icon">
-              <TabIcon label="🧾" focused={focused} />
+              <TabIcon name="receipt-text" focused={focused} />
             </View>
           ),
         }}
@@ -65,7 +74,7 @@ export default function TabsLayout() {
           title: "Settings",
           tabBarIcon: ({ focused }) => (
             <View className="tabs-icon">
-              <TabIcon label="⚙️" focused={focused} />
+              <TabIcon name="cog" focused={focused} />
             </View>
           ),
         }}

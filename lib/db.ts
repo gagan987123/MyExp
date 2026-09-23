@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from "expo-sqlite";
-import { File, Paths, copyAsync } from "expo-file-system";
+import { File, Paths } from "expo-file-system";
+import { copyAsync } from "expo-file-system/legacy";
 
 export const DATABASE_NAME = "expenses.db";
 const DATABASE_VERSION = 1;

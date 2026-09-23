@@ -25,7 +25,7 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView
-      style={{ flex: 1, backgroundColor: "#fff9e3" }}
+      style={{ flex: 1, backgroundColor: "#0B0E17" }}
       edges={["top", "bottom"]}
     >
       <ScrollView style={{ flex: 1, padding: 20 }}>
@@ -58,16 +58,16 @@ export default function SettingsScreen() {
               alignItems: "center",
               borderRadius: 16,
               paddingVertical: 14,
-              backgroundColor: confirmingClear ? "#dc2626" : "transparent",
+              backgroundColor: confirmingClear ? "#f87171" : "transparent",
               borderWidth: 1,
-              borderColor: "#dc2626",
+              borderColor: "#f87171",
             }}
             onPress={onClear}
           >
             <Text
               style={{
                 fontWeight: "700",
-                color: confirmingClear ? "#fff" : "#dc2626",
+                color: confirmingClear ? "#fff" : "#f87171",
               }}
             >
               {confirmingClear ? "Tap again to delete everything" : "Clear all data"}

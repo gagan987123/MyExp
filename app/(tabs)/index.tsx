@@ -1,9 +1,11 @@
 import "@/global.css";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import CategoryIcon from "@/components/CategoryIcon";
 import {
   CATEGORIES,
   getMonthTotal,
@@ -24,7 +26,7 @@ function formatINR(amount: number): string {
 }
 
 function categoryMeta(id: string) {
-  return CATEGORIES.find((c) => c.id === id) ?? { id, name: id, icon: "📦" };
+  return CATEGORIES.find((c) => c.id === id) ?? { id, name: id, icon: "dots-horizontal" };
 }
 
 export default function HomeScreen() {
@@ -56,7 +58,7 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView
-      style={{ flex: 1, backgroundColor: "#fff9e3" }}
+      style={{ flex: 1, backgroundColor: "#0B0E17" }}
       edges={["top", "bottom"]}
     >
       <ScrollView style={{ flex: 1, padding: 20 }}>
@@ -67,10 +69,10 @@ export default function HomeScreen() {
               style={{
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: "#ea7a53",
+                backgroundColor: "#ff7a45",
               }}
             >
-              <Text style={{ fontSize: 28 }}>💰</Text>
+              <MaterialCommunityIcons name="wallet" size={30} color="#0B0E17" />
             </View>
             <Text className="home-user-name">MyExp</Text>
           </View>
@@ -79,11 +81,11 @@ export default function HomeScreen() {
             style={{ alignItems: "center", justifyContent: "center" }}
             onPress={() => router.push("/(tabs)/add-expense")}
           >
-            <Text className="text-3xl">＋</Text>
+            <MaterialCommunityIcons name="plus" size={30} color="#F4F1EA" />
           </Pressable>
         </View>
 
-        <View className="home-balance-card">
+        <View className="home-balance-card" style={{ minHeight: 168 }}>
           <Text className="home-balance-label">Spent in {monthName}</Text>
           <View className="home-balance-row">
             <Text className="home-balance-amount">
@@ -114,7 +116,7 @@ export default function HomeScreen() {
               return (
                 <View key={e.id} className="upcoming-card" style={{ marginRight: 0 }}>
                   <View className="upcoming-row">
-                    <Text className="upcoming-icon">{meta.icon}</Text>
+                    <CategoryIcon name={meta.icon} />
                     <View>
                       <Text className="upcoming-price">
                         {formatINR(e.amount)}

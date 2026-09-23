@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ExpenseForm from "@/components/ExpenseForm";
+import CategoryIcon from "@/components/CategoryIcon";
 import {
   CATEGORIES,
   editExpense,
@@ -68,13 +69,13 @@ export default function ExpenseDetailsScreen() {
     ? (CATEGORIES.find((c) => c.id === expense.category) ?? {
         id: expense.category,
         name: expense.category,
-        icon: "📦",
+        icon: "dots-horizontal",
       })
     : null;
 
   return (
     <SafeAreaView
-      style={{ flex: 1, backgroundColor: "#fff9e3" }}
+      style={{ flex: 1, backgroundColor: "#0B0E17" }}
       edges={["top", "bottom"]}
     >
       <ScrollView
@@ -119,9 +120,10 @@ export default function ExpenseDetailsScreen() {
         ) : (
           <>
             <View className="home-balance-card">
-              <Text className="home-balance-label">
-                {meta.icon} {meta.name}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <CategoryIcon name={meta.icon} size={20} box={40} />
+                <Text className="home-balance-label">{meta.name}</Text>
+              </View>
               <Text className="home-balance-amount">
                 {formatINR(expense.amount)}
               </Text>
@@ -173,16 +175,16 @@ export default function ExpenseDetailsScreen() {
                   alignItems: "center",
                   borderRadius: 16,
                   paddingVertical: 16,
-                  backgroundColor: confirmingDelete ? "#dc2626" : "transparent",
+                  backgroundColor: confirmingDelete ? "#f87171" : "transparent",
                   borderWidth: 1,
-                  borderColor: "#dc2626",
+                  borderColor: "#f87171",
                 }}
                 onPress={onDelete}
               >
                 <Text
                   style={{
                     fontWeight: "700",
-                    color: confirmingDelete ? "#fff" : "#dc2626",
+                    color: confirmingDelete ? "#fff" : "#f87171",
                   }}
                 >
                   {confirmingDelete ? "Tap again to delete" : "Delete"}

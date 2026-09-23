@@ -3,17 +3,17 @@
 @import "tailwindcss/utilities.css";
 
 @import "nativewind/theme";
-
 @theme {
-  --color-background: #fff9e3;  --color-foreground: #081126;
-  --color-card: #fff8e7;
-  --color-muted: #f6eecf;
-  --color-muted-foreground: rgba(0, 0, 0, 0.6);
-  --color-primary: #081126;
-  --color-accent: #ea7a53;
-  --color-border: rgba(0, 0, 0, 0.1);
-  --color-success: #16a34a;
-  --color-destructive: #dc2626;
+  --color-background: #0b0e17;
+  --color-foreground: #f4f1ea;
+  --color-card: #141926;
+  --color-muted: #1d2436;
+  --color-muted-foreground: rgba(244, 241, 234, 0.6);
+  --color-primary: #f4f1ea;
+  --color-accent: #ff7a45;
+  --color-border: rgba(244, 241, 234, 0.12);
+  --color-success: #34d399;
+  --color-destructive: #f87171;
   --color-subscription: #8fd1bd;
 
   --spacing: 4px;
@@ -37,12 +37,12 @@
   --spacing-24: 96px;
   --spacing-30: 120px;
 
-  --font-sans: sans-regular;
-  --font-sans-light: sans-light;
-  --font-sans-medium: sans-medium;
-  --font-sans-semibold: sans-semibold;
-  --font-sans-bold: sans-bold;
-  --font-sans-extrabold: sans-extrabold;
+  --font-sans: SpaceGrotesk_400Regular;
+  --font-sans-light: SpaceGrotesk_300Light;
+  --font-sans-medium: SpaceGrotesk_500Medium;
+  --font-sans-semibold: SpaceGrotesk_600SemiBold;
+  --font-sans-bold: SpaceGrotesk_700Bold;
+  --font-sans-extrabold: SpaceGrotesk_700Bold;
 }
 
 @layer components {
@@ -127,7 +127,7 @@
   }
 
   .list-action {
-    @apply rounded-full border border-black/20 px-4 py-1;
+    @apply rounded-full border border-border px-4 py-1;
   }
 
   .list-action-text {
@@ -135,7 +135,7 @@
   }
 
   .upcoming-card {
-    @apply mr-4 w-44 rounded-2xl border border-black/10 bg-background p-4;
+    @apply mr-4 w-44 rounded-2xl border border-border bg-card p-4;
   }
 
   .upcoming-row {
@@ -239,7 +239,7 @@
   }
 
   .home-empty-state {
-    @apply py-4 text-sm font-sans-medium text-black/60;
+    @apply py-4 text-sm font-sans-medium text-muted-foreground;
   }
 
   .auth-safe-area {

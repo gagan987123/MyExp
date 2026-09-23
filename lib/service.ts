@@ -13,15 +13,15 @@ import {
 export type { CategoryId, Expense };
 
 export const CATEGORIES: { id: CategoryId; name: string; icon: string }[] = [
-  { id: "food", name: "Food", icon: "🍔" },
-  { id: "transport", name: "Transport", icon: "🚌" },
-  { id: "petrol", name: "Petrol", icon: "⛽" },
-  { id: "shopping", name: "Shopping", icon: "🛍️" },
-  { id: "bills", name: "Bills", icon: "🧾" },
-  { id: "entertainment", name: "Entertainment", icon: "🎬" },
-  { id: "health", name: "Health", icon: "💊" },
-  { id: "travel", name: "Travel", icon: "✈️" },
-  { id: "other", name: "Other", icon: "📦" },
+  { id: "food", name: "Food", icon: "food" },
+  { id: "transport", name: "Transport", icon: "bus" },
+  { id: "petrol", name: "Petrol", icon: "gas-station" },
+  { id: "shopping", name: "Shopping", icon: "shopping" },
+  { id: "bills", name: "Bills", icon: "receipt-text" },
+  { id: "entertainment", name: "Entertainment", icon: "movie-open" },
+  { id: "health", name: "Health", icon: "heart-pulse" },
+  { id: "travel", name: "Travel", icon: "airplane" },
+  { id: "other", name: "Other", icon: "dots-horizontal" },
 ];
 
 const CATEGORY_IDS = new Set<string>(CATEGORIES.map((c) => c.id));
