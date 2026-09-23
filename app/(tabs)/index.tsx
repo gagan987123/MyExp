@@ -11,6 +11,7 @@ import {
   getMonthIncome,
   getMonthTotal,
   listExpenses,
+  listRecurringTemplates,
   postDueRecurring,
   type Expense,
 } from "@/lib/service";
@@ -37,19 +38,22 @@ export default function HomeScreen() {
   const [monthTotal, setMonthTotal] = useState(0);
   const [monthIncome, setMonthIncome] = useState(0);
   const [recent, setRecent] = useState<Expense[]>([]);
+  const [hasRecurring, setHasRecurring] = useState(true);
 
   const load = useCallback(async () => {
     try {
       // Post any due recurring salary/EMIs first (idempotent catch-up).
       await postDueRecurring(db).catch(() => []);
-      const [total, income, all] = await Promise.all([
+      const [total, income, all, templates] = await Promise.all([
         getMonthTotal(db),
         getMonthIncome(db),
         listExpenses(db),
+        listRecurringTemplates(db),
       ]);
       setMonthTotal(total);
       setMonthIncome(income);
       setRecent(all.slice(0, 4));
+      setHasRecurring(templates.length > 0);
     } catch {
       // v1: silent fail, empty state covers it
     }
@@ -119,6 +123,39 @@ export default function HomeScreen() {
             <Text className="list-action-text">See all</Text>
           </Pressable>
         </View>
+
+        {!hasRecurring ? (
+          <Pressable
+            onPress={() => router.push("/recurring")}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+              backgroundColor: "rgba(255,122,69,0.12)",
+              borderWidth: 1,
+              borderColor: "rgba(255,122,69,0.45)",
+              borderRadius: 16,
+              padding: 14,
+              marginBottom: 16,
+            }}
+          >
+            <MaterialCommunityIcons
+              name="autorenew"
+              size={28}
+              color="#ff7a45"
+            />
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{ fontWeight: "700", fontSize: 15, color: "#F4F1EA" }}
+              >
+                Salary & EMIs on autopilot
+              </Text>
+              <Text style={{ fontSize: 13, color: "rgba(244,241,234,0.65)" }}>
+                Set it once — they post every month. Tap to start ›
+              </Text>
+            </View>
+          </Pressable>
+        ) : null}
 
         {recent.length === 0 ? (
           <Text className="home-empty-state">
