@@ -121,7 +121,7 @@ export default function ExpenseDetailsScreen() {
           <>
             <View className="home-balance-card">
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <CategoryIcon name={meta.icon} size={20} box={40} />
+                <CategoryIcon name={meta.icon} size={20} box={40} tone="dark" />
                 <Text className="home-balance-label">{meta.name}</Text>
               </View>
               <Text className="home-balance-amount">

@@ -42,7 +42,7 @@ export default function HomeScreen() {
         listExpenses(db),
       ]);
       setMonthTotal(total);
-      setRecent(all.slice(0, 5));
+      setRecent(all.slice(0, 3));
     } catch {
       // v1: silent fail, empty state covers it
     }

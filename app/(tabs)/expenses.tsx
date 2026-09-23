@@ -63,6 +63,10 @@ export default function ExpensesScreen() {
   const [monthBreakdown, setMonthBreakdown] = useState<
     { id: CategoryId; amount: number }[]
   >([]);
+  const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<CategoryId | null>(
+    null
+  );
 
   const load = useCallback(async () => {
     try {
@@ -70,11 +74,13 @@ export default function ExpensesScreen() {
         listExpenses(db),
         getMonthCategoryTotals(db),
       ]);
+      setAllExpenses(all);
       setGroups(groupByDay(all, new Date()));
       setCount(all.length);
       setMonthTotal(month.total);
       setMonthBreakdown(month.byCategory);
     } catch {
+      setAllExpenses([]);
       setGroups([]);
       setCount(0);
       setMonthTotal(0);
@@ -87,6 +93,16 @@ export default function ExpensesScreen() {
       load();
     }, [load])
   );
+
+  const visibleGroups = selectedCategory
+    ? groupByDay(
+        allExpenses.filter((e) => e.category === selectedCategory),
+        new Date()
+      )
+    : groups;
+  const selectedMeta = selectedCategory
+    ? CATEGORIES.find((c) => c.id === selectedCategory)
+    : null;
 
   return (
     <SafeAreaView
@@ -112,7 +128,7 @@ export default function ExpensesScreen() {
             return (
               <View key={b.id} className="home-balance-row" style={{ marginTop: 8 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <CategoryIcon name={meta.icon} size={16} box={30} />
+                  <CategoryIcon name={meta.icon} size={16} box={30} tone="dark" />
                   <Text className="home-balance-date">
                     {meta.name} · {pct}%
                   </Text>
@@ -125,12 +141,48 @@ export default function ExpensesScreen() {
           })}
         </View>
 
-        {groups.length === 0 ? (
+        <Text className="auth-label" style={{ marginTop: 16, marginBottom: 8 }}>
+          Filter by category
+        </Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          <Pressable
+            className={`category-chip ${selectedCategory === null ? "category-chip-active" : ""}`}
+            onPress={() => setSelectedCategory(null)}
+          >
+            <Text
+              className={`category-chip-text ${selectedCategory === null ? "category-chip-text-active" : ""}`}
+            >
+              All
+            </Text>
+          </Pressable>
+          {CATEGORIES.map((c) => {
+            const active = selectedCategory === c.id;
+            return (
+              <Pressable
+                key={c.id}
+                className={`category-chip ${active ? "category-chip-active" : ""}`}
+                style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                onPress={() => setSelectedCategory(active ? null : c.id)}
+              >
+                <CategoryIcon name={c.icon} size={15} box={26} />
+                <Text
+                  className={`category-chip-text ${active ? "category-chip-text-active" : ""}`}
+                >
+                  {c.name}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {visibleGroups.length === 0 ? (
           <Text className="home-empty-state">
-            Nothing here yet. Add your first expense from the ＋ tab.
+            {selectedMeta
+              ? `No ${selectedMeta.name} expenses yet. Tap the chip again to clear.`
+              : "Nothing here yet. Add your first expense from the ＋ tab."}
           </Text>
         ) : (
-          groups.map((g) => (
+          visibleGroups.map((g) => (
             <View key={g.label} style={{ marginBottom: 16 }}>
               <View
                 style={{
