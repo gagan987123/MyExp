@@ -6,14 +6,19 @@ import { useCallback, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryIcon from "@/components/CategoryIcon";
+import MonthInsights from "@/components/MonthInsights";
 import {
   CATEGORIES,
+  getMonthCategoryTotals,
   getMonthIncome,
   getMonthTotal,
+  getMonthlyHistory,
   listExpenses,
   listRecurringTemplates,
   postDueRecurring,
+  type CategoryId,
   type Expense,
+  type MonthlyPoint,
 } from "@/lib/service";
 
 function formatINR(amount: number): string {
@@ -39,21 +44,29 @@ export default function HomeScreen() {
   const [monthIncome, setMonthIncome] = useState(0);
   const [recent, setRecent] = useState<Expense[]>([]);
   const [hasRecurring, setHasRecurring] = useState(true);
+  const [breakdown, setBreakdown] = useState<
+    { id: CategoryId; amount: number }[]
+  >([]);
+  const [history, setHistory] = useState<MonthlyPoint[]>([]);
 
   const load = useCallback(async () => {
     try {
       // Post any due recurring salary/EMIs first (idempotent catch-up).
       await postDueRecurring(db).catch(() => []);
-      const [total, income, all, templates] = await Promise.all([
+      const [total, income, all, templates, month, hist] = await Promise.all([
         getMonthTotal(db),
         getMonthIncome(db),
         listExpenses(db),
         listRecurringTemplates(db),
+        getMonthCategoryTotals(db),
+        getMonthlyHistory(db, 6),
       ]);
       setMonthTotal(total);
       setMonthIncome(income);
       setRecent(all.slice(0, 4));
       setHasRecurring(templates.length > 0);
+      setBreakdown(month.byCategory);
+      setHistory(hist);
     } catch {
       // v1: silent fail, empty state covers it
     }
@@ -191,6 +204,12 @@ export default function HomeScreen() {
             })}
           </View>
         )}
+
+        <MonthInsights
+          total={monthTotal}
+          byCategory={breakdown}
+          history={history}
+        />
 
       </ScrollView>
     </SafeAreaView>
