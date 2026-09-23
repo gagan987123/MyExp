@@ -1,4 +1,5 @@
 import "@/global.css";
+import { useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
@@ -7,6 +8,7 @@ import { clearAllExpenses } from "@/lib/service";
 
 export default function SettingsScreen() {
   const db = useSQLiteContext();
+  const router = useRouter();
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [cleared, setCleared] = useState(false);
 
@@ -47,6 +49,22 @@ export default function SettingsScreen() {
             </View>
           </View>
         </View>
+
+        <Pressable
+          className="sub-card"
+          style={{ marginTop: 16 }}
+          onPress={() => router.push("/recurring")}
+        >
+          <View className="sub-head">
+            <View className="sub-copy">
+              <Text className="sub-title">Recurring</Text>
+              <Text className="sub-meta">
+                Salary and EMIs that post themselves monthly.
+              </Text>
+            </View>
+            <Text className="auth-link">›</Text>
+          </View>
+        </Pressable>
 
         <View className="sub-card" style={{ marginTop: 16 }}>
           <Text className="sub-title">Danger zone</Text>

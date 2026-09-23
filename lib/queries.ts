@@ -109,3 +109,110 @@ export async function deleteExpense(
 export async function deleteAllExpenses(db: SQLiteDatabase): Promise<void> {
   await db.runAsync("DELETE FROM expenses");
 }
+
+export type RecurringTemplate = {
+  id: string;
+  kind: EntryKind;
+  amount: number;
+  category: CategoryId;
+  note: string | null;
+  /** Day of month, 1–28. */
+  dayOfMonth: number;
+  startYear: number;
+  /** 1–12 */
+  startMonth: number;
+  /** Total installments, or null for indefinite. */
+  totalInstallments: number | null;
+  postedCount: number;
+  active: boolean;
+  createdAt: string;
+};
+
+type RecurringTemplateRow = {
+  id: string;
+  kind: string;
+  amount: number;
+  category: string;
+  note: string | null;
+  day_of_month: number;
+  start_year: number;
+  start_month: number;
+  total_installments: number | null;
+  posted_count: number;
+  active: number;
+  created_at: string;
+};
+
+function mapTemplateRow(row: RecurringTemplateRow): RecurringTemplate {
+  return {
+    id: row.id,
+    kind: row.kind === "income" ? "income" : "expense",
+    amount: row.amount,
+    category: row.category as CategoryId,
+    note: row.note,
+    dayOfMonth: row.day_of_month,
+    startYear: row.start_year,
+    startMonth: row.start_month,
+    totalInstallments: row.total_installments,
+    postedCount: row.posted_count,
+    active: row.active === 1,
+    createdAt: row.created_at,
+  };
+}
+
+export async function insertRecurringTemplate(
+  db: SQLiteDatabase,
+  t: RecurringTemplate
+): Promise<void> {
+  await db.runAsync(
+    "INSERT INTO recurring_templates (id, kind, amount, category, note, day_of_month, start_year, start_month, total_installments, posted_count, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    t.id,
+    t.kind,
+    t.amount,
+    t.category,
+    t.note,
+    t.dayOfMonth,
+    t.startYear,
+    t.startMonth,
+    t.totalInstallments,
+    t.postedCount,
+    t.active ? 1 : 0,
+    t.createdAt
+  );
+}
+
+export async function getRecurringTemplates(
+  db: SQLiteDatabase
+): Promise<RecurringTemplate[]> {
+  const rows = await db.getAllAsync<RecurringTemplateRow>(
+    "SELECT * FROM recurring_templates ORDER BY created_at DESC"
+  );
+  return rows.map(mapTemplateRow);
+}
+
+export async function updateRecurringPostedCount(
+  db: SQLiteDatabase,
+  id: string,
+  postedCount: number
+): Promise<void> {
+  await db.runAsync(
+    "UPDATE recurring_templates SET posted_count = ? WHERE id = ?",
+    postedCount,
+    id
+  );
+}
+
+export async function setRecurringActive(
+  db: SQLiteDatabase,
+  id: string,
+  active: boolean
+): Promise<void> {
+  await db.runAsync("UPDATE recurring_templates SET active = ? WHERE id = ?", active ? 1 : 0, id);
+}
+
+export async function deleteRecurringTemplate(
+  db: SQLiteDatabase,
+  id: string
+): Promise<void> {
+  await db.runAsync("DELETE FROM recurring_templates WHERE id = ?", id);
+}

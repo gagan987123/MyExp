@@ -11,6 +11,7 @@ import {
   getMonthIncome,
   getMonthTotal,
   listExpenses,
+  postDueRecurring,
   type Expense,
 } from "@/lib/service";
 
@@ -39,6 +40,8 @@ export default function HomeScreen() {
 
   const load = useCallback(async () => {
     try {
+      // Post any due recurring salary/EMIs first (idempotent catch-up).
+      await postDueRecurring(db).catch(() => []);
       const [total, income, all] = await Promise.all([
         getMonthTotal(db),
         getMonthIncome(db),

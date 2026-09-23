@@ -2,16 +2,22 @@ import type { SQLiteDatabase } from "expo-sqlite";
 import {
   deleteAllExpenses,
   deleteExpense,
+  deleteRecurringTemplate,
   getAllExpenses,
   getExpenseById,
+  getRecurringTemplates,
   insertExpense,
+  insertRecurringTemplate,
+  setRecurringActive,
   updateExpense,
+  updateRecurringPostedCount,
   type CategoryId,
   type EntryKind,
   type Expense,
+  type RecurringTemplate,
 } from "./queries";
 
-export type { CategoryId, EntryKind, Expense };
+export type { CategoryId, EntryKind, Expense, RecurringTemplate };
 
 export const CATEGORIES: { id: CategoryId; name: string; icon: string }[] = [
   { id: "food", name: "Food", icon: "food" },
@@ -212,6 +218,184 @@ export async function clearAllExpenses(db: SQLiteDatabase): Promise<void> {
   } catch (error) {
     toUserMessage(error);
   }
+}
+
+// --- Recurring (salary / EMI autopilot) ---
+// Runs on app start: posts anything due since the last run. Idempotent —
+// posted_count guarantees no double-posts, and missed months catch up.
+
+export type AddRecurringInput = {
+  kind: EntryKind;
+  amount: number;
+  category: string;
+  note?: string | null;
+  dayOfMonth: number;
+  startYear: number;
+  startMonth: number;
+  totalInstallments?: number | null;
+};
+
+function validateRecurringInput(input: AddRecurringInput) {
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    throw new ValidationError("Amount must be greater than 0.");
+  }
+  if (!input.category || !CATEGORY_IDS.has(input.category)) {
+    throw new ValidationError("Please choose a valid category.");
+  }
+  if (!Number.isInteger(input.dayOfMonth) || input.dayOfMonth < 1 || input.dayOfMonth > 28) {
+    throw new ValidationError("Pick a day between 1 and 28.");
+  }
+  if (
+    !Number.isInteger(input.startYear) ||
+    !Number.isInteger(input.startMonth) ||
+    input.startMonth < 1 ||
+    input.startMonth > 12
+  ) {
+    throw new ValidationError("Invalid start month.");
+  }
+  if (
+    input.totalInstallments != null &&
+    (!Number.isInteger(input.totalInstallments) || input.totalInstallments < 1)
+  ) {
+    throw new ValidationError("Installments must be at least 1.");
+  }
+  return {
+    kind: input.kind === "income" ? ("income" as EntryKind) : ("expense" as EntryKind),
+    amount: input.amount,
+    category: input.category as CategoryId,
+    note:
+      input.note == null || input.note.trim() === ""
+        ? null
+        : input.note.trim(),
+    dayOfMonth: input.dayOfMonth,
+    startYear: input.startYear,
+    startMonth: input.startMonth,
+    totalInstallments: input.totalInstallments ?? null,
+  };
+}
+
+export async function addRecurringTemplate(
+  db: SQLiteDatabase,
+  input: AddRecurringInput
+): Promise<RecurringTemplate> {
+  const valid = validateRecurringInput(input);
+  const template: RecurringTemplate = {
+    id: generateId(),
+    ...valid,
+    postedCount: 0,
+    active: true,
+    createdAt: new Date().toISOString(),
+  };
+  try {
+    await insertRecurringTemplate(db, template);
+    return template;
+  } catch (error) {
+    toUserMessage(error);
+  }
+}
+
+export async function listRecurringTemplates(
+  db: SQLiteDatabase
+): Promise<RecurringTemplate[]> {
+  try {
+    return await getRecurringTemplates(db);
+  } catch (error) {
+    toUserMessage(error);
+  }
+}
+
+export async function setRecurringTemplateActive(
+  db: SQLiteDatabase,
+  id: string,
+  active: boolean
+): Promise<void> {
+  try {
+    await setRecurringActive(db, id, active);
+  } catch (error) {
+    toUserMessage(error);
+  }
+}
+
+export async function removeRecurringTemplate(
+  db: SQLiteDatabase,
+  id: string
+): Promise<void> {
+  try {
+    await deleteRecurringTemplate(db, id);
+  } catch (error) {
+    toUserMessage(error);
+  }
+}
+
+function monthsDue(
+  t: Pick<
+    RecurringTemplate,
+    "dayOfMonth" | "startYear" | "startMonth" | "totalInstallments" | "postedCount"
+  >,
+  today: Date
+): { year: number; month: number }[] {
+  const out: { year: number; month: number }[] = [];
+  let y = t.startYear;
+  let m = t.startMonth;
+  let index = 0;
+  while (true) {
+    if (t.totalInstallments != null && index >= t.totalInstallments) break;
+    if (y > today.getFullYear() || (y === today.getFullYear() && m > today.getMonth() + 1)) break;
+    const isCurrentMonth =
+      y === today.getFullYear() && m === today.getMonth() + 1;
+    if (!isCurrentMonth || t.dayOfMonth <= today.getDate()) {
+      if (index >= t.postedCount) out.push({ year: y, month: m });
+    }
+    index += 1;
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+    if (index > 1200) break; // safety: 100 years
+  }
+  return out;
+}
+
+/** Posts every due installment. Returns the created entries. */
+export async function postDueRecurring(
+  db: SQLiteDatabase,
+  today: Date = new Date()
+): Promise<Expense[]> {
+  const templates = await listRecurringTemplates(db);
+  const posted: Expense[] = [];
+  const nowISO = new Date().toISOString();
+  for (const t of templates) {
+    if (!t.active) continue;
+    const due = monthsDue(t, today);
+    if (due.length === 0) continue;
+    // Day 1–28 is valid in every month, no clamping needed.
+    for (const { year, month } of due) {
+      const day = String(t.dayOfMonth).padStart(2, "0");
+      const mm = String(month).padStart(2, "0");
+      const expense: Expense = {
+        id: generateId(),
+        amount: t.amount,
+        category: t.category,
+        note: t.note,
+        date: new Date(`${year}-${mm}-${day}T00:00:00`).toISOString(),
+        createdAt: nowISO,
+        kind: t.kind,
+      };
+      try {
+        await insertExpense(db, expense);
+        posted.push(expense);
+      } catch (error) {
+        toUserMessage(error);
+      }
+    }
+    try {
+      await updateRecurringPostedCount(db, t.id, t.postedCount + due.length);
+    } catch (error) {
+      toUserMessage(error);
+    }
+  }
+  return posted;
 }
 
 // --- Basic stats (computed in JS, no chart lib needed for v1) ---

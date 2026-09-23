@@ -3,7 +3,7 @@ import { File, Paths } from "expo-file-system";
 import { copyAsync } from "expo-file-system/legacy";
 
 export const DATABASE_NAME = "expenses.db";
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 
 /** Must match the App Group in app.json + the Swift intent. */
 export const APP_GROUP_ID = "group.com.gagan987123.myexp";
@@ -61,6 +61,28 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
       ALTER TABLE expenses ADD COLUMN kind TEXT NOT NULL DEFAULT 'expense';
     `);
     currentVersion = 2;
+  }
+
+  // v2 → v3: autopay/salary templates. App-managed only; Siri never
+  // touches this table (it writes finished rows straight to expenses).
+  if (currentVersion === 2) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS recurring_templates (
+        id TEXT PRIMARY KEY NOT NULL,
+        kind TEXT NOT NULL,
+        amount REAL NOT NULL,
+        category TEXT NOT NULL,
+        note TEXT,
+        day_of_month INTEGER NOT NULL,
+        start_year INTEGER NOT NULL,
+        start_month INTEGER NOT NULL,
+        total_installments INTEGER,
+        posted_count INTEGER NOT NULL DEFAULT 0,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL
+      );
+    `);
+    currentVersion = 3;
   }
 
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
