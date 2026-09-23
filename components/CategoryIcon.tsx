@@ -18,18 +18,22 @@ export default function CategoryIcon({
   size?: number;
   box?: number;
   /** "dark" is for use on orange backgrounds (invisible otherwise). */
-  tone?: "default" | "dark";
+  tone?: "default" | "dark" | "income";
 }) {
-  const dark = tone === "dark";
+  const bg =
+    tone === "dark"
+      ? "rgba(11,14,23,0.20)"
+      : tone === "income"
+        ? "rgba(52,211,153,0.14)"
+        : "rgba(255,122,69,0.14)";
+  const fg = tone === "dark" ? "#0B0E17" : tone === "income" ? "#34d399" : "#ff7a45";
   return (
     <View
       style={{
         width: box,
         height: box,
         borderRadius: box / 2,
-        backgroundColor: dark
-          ? "rgba(11,14,23,0.20)"
-          : "rgba(255,122,69,0.14)",
+        backgroundColor: bg,
         alignItems: "center",
         justifyContent: "center",
       }}
@@ -37,7 +41,7 @@ export default function CategoryIcon({
       <MaterialCommunityIcons
         name={name as GlyphName}
         size={size}
-        color={dark ? "#0B0E17" : "#ff7a45"}
+        color={fg}
       />
     </View>
   );

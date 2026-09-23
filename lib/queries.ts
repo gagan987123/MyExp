@@ -9,17 +9,22 @@ export type CategoryId =
   | "entertainment"
   | "health"
   | "travel"
+  | "salary"
   | "other";
+
+export type EntryKind = "expense" | "income";
 
 export type Expense = {
   id: string;
   amount: number;
   category: CategoryId;
   note: string | null;
-  /** ISO date string for the expense day */
+  /** ISO date string for the entry day */
   date: string;
   /** ISO timestamp of creation */
   createdAt: string;
+  /** Money direction. Defaults to expense for pre-v2 rows. */
+  kind: EntryKind;
 };
 
 type ExpenseRow = {
@@ -29,6 +34,7 @@ type ExpenseRow = {
   note: string | null;
   date: string;
   created_at: string;
+  kind?: string | null;
 };
 
 function mapRow(row: ExpenseRow): Expense {
@@ -39,6 +45,7 @@ function mapRow(row: ExpenseRow): Expense {
     note: row.note,
     date: row.date,
     createdAt: row.created_at,
+    kind: row.kind === "income" ? "income" : "expense",
   };
 }
 
@@ -47,19 +54,20 @@ export async function insertExpense(
   expense: Expense
 ): Promise<void> {
   await db.runAsync(
-    "INSERT INTO expenses (id, amount, category, note, date, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    "INSERT INTO expenses (id, amount, category, note, date, created_at, kind) VALUES (?, ?, ?, ?, ?, ?, ?)",
     expense.id,
     expense.amount,
     expense.category,
     expense.note,
     expense.date,
-    expense.createdAt
+    expense.createdAt,
+    expense.kind
   );
 }
 
 export async function getAllExpenses(db: SQLiteDatabase): Promise<Expense[]> {
   const rows = await db.getAllAsync<ExpenseRow>(
-    "SELECT id, amount, category, note, date, created_at FROM expenses ORDER BY date DESC, created_at DESC"
+    "SELECT id, amount, category, note, date, created_at, kind FROM expenses ORDER BY date DESC, created_at DESC"
   );
   return rows.map(mapRow);
 }
@@ -69,7 +77,7 @@ export async function getExpenseById(
   id: string
 ): Promise<Expense | null> {
   const row = await db.getFirstAsync<ExpenseRow>(
-    "SELECT id, amount, category, note, date, created_at FROM expenses WHERE id = ?",
+    "SELECT id, amount, category, note, date, created_at, kind FROM expenses WHERE id = ?",
     id
   );
   return row ? mapRow(row) : null;
@@ -78,14 +86,15 @@ export async function getExpenseById(
 export async function updateExpense(
   db: SQLiteDatabase,
   id: string,
-  patch: { amount: number; category: CategoryId; note: string | null; date: string }
+  patch: { amount: number; category: CategoryId; note: string | null; date: string; kind: EntryKind }
 ): Promise<void> {
   await db.runAsync(
-    "UPDATE expenses SET amount = ?, category = ?, note = ?, date = ? WHERE id = ?",
+    "UPDATE expenses SET amount = ?, category = ?, note = ?, date = ?, kind = ? WHERE id = ?",
     patch.amount,
     patch.category,
     patch.note,
     patch.date,
+    patch.kind,
     id
   );
 }

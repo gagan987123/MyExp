@@ -141,10 +141,13 @@ export default function CategoryExpensesScreen() {
                     className="sub-card"
                     onPress={() => router.push(`/expense/${e.id}`)}
                   >
-                    <View className="sub-head">
-                      <View className="sub-main">
-                        <CategoryIcon name={meta.icon} />
-                        <View className="sub-copy">
+                      <View className="sub-head">
+                        <View className="sub-main">
+                          <CategoryIcon
+                            name={meta.icon}
+                            tone={e.kind === "income" ? "income" : "default"}
+                          />
+                          <View className="sub-copy">
                           <Text className="sub-title">{meta.name}</Text>
                           <Text className="sub-meta" numberOfLines={1}>
                             {e.note ?? "No note"}

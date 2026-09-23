@@ -5,6 +5,7 @@ import {
   CATEGORIES,
   ValidationError,
   type CategoryId,
+  type EntryKind,
 } from "@/lib/service";
 
 export type ExpenseFormValue = {
@@ -12,6 +13,7 @@ export type ExpenseFormValue = {
   category: CategoryId;
   note: string | null;
   date: Date;
+  kind: EntryKind;
 };
 
 export type ExpenseFormInitial = {
@@ -19,6 +21,7 @@ export type ExpenseFormInitial = {
   category?: CategoryId;
   note?: string | null;
   date?: Date | string;
+  kind?: EntryKind;
 };
 
 function toDate(input?: Date | string): Date {
@@ -64,6 +67,7 @@ export default function ExpenseForm({
   );
   const [note, setNote] = useState(initial?.note ?? "");
   const [date, setDate] = useState<Date>(() => toDate(initial?.date));
+  const [kind, setKind] = useState<EntryKind>(initial?.kind ?? "expense");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const autoSubmitted = useRef(false);
@@ -85,6 +89,7 @@ export default function ExpenseForm({
         category,
         note: note.trim() === "" ? null : note,
         date,
+        kind,
       });
     } catch (e) {
       setError(
@@ -111,6 +116,28 @@ export default function ExpenseForm({
   return (
     <View className="auth-card">
       <View className="auth-form">
+        <View className="picker-row">
+          {(["expense", "income"] as EntryKind[]).map((k) => {
+            const active = kind === k;
+            return (
+              <Pressable
+                key={k}
+                className={`picker-option ${active ? "picker-option-active" : ""}`}
+                onPress={() => {
+                  setKind(k);
+                  if (k === "income") setCategory("salary");
+                  else if (category === "salary") setCategory(null);
+                }}
+              >
+                <Text
+                  className={`picker-option-text ${active ? "picker-option-text-active" : ""}`}
+                >
+                  {k === "expense" ? "Money out" : "Money in"}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
         <View className="auth-field">
           <Text className="auth-label">Amount</Text>
           <View style={{ flexDirection: "row", alignItems: "center" }}>

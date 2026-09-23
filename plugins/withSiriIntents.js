@@ -44,7 +44,7 @@ struct AddExpenseIntent: AppIntent {
   @Parameter(title: "Note", description: "What it was for, e.g. chai.")
   var note: String
 
-  @Parameter(title: "Category", description: "Optional. Food, Petrol, Transport, Shopping, Bills, Entertainment, Health, Travel or Other. Guessed from the note when skipped.")
+  @Parameter(title: "Category", description: "Optional. Food, Petrol, Transport, Shopping, Bills, Entertainment, Health, Travel, Salary or Other. Guessed from the note when skipped.")
   var category: String?
 
   static var parameterSummary: some ParameterSummary {
@@ -58,7 +58,7 @@ struct AddExpenseIntent: AppIntent {
   // Deterministic keyword rules (no AI) — mirrors matchCategory()
   // in lib/service.ts. Keep the two lists in sync.
   static func resolveCategory(note: String, hint: String?) -> String {
-    let ids = ["food", "transport", "petrol", "shopping", "bills", "entertainment", "health", "travel", "other"]
+    let ids = ["food", "transport", "petrol", "shopping", "bills", "entertainment", "health", "travel", "salary", "other"]
     if let hint {
       let key = hint.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
       if ids.contains(key) { return key }
@@ -79,6 +79,8 @@ struct AddExpenseIntent: AppIntent {
         "electricity": "bills", "water": "bills", "rent": "bills",
         "internet": "bills", "recharge": "bills", "mobile": "bills",
         "clothes": "shopping", "clothing": "shopping", "shoes": "shopping",
+        "salary": "salary", "pay": "salary", "paycheck": "salary",
+        "income": "salary", "wages": "salary",
       ]
       if let hit = aliases[key] { return hit }
     }
@@ -95,6 +97,7 @@ struct AddExpenseIntent: AppIntent {
       ("groceries", "food"), ("food", "food"), ("eat", "food"), ("meal", "food"),
       ("bill", "bills"), ("electricity", "bills"), ("rent", "bills"), ("recharge", "bills"),
       ("shop", "shopping"), ("clothes", "shopping"), ("shoe", "shopping"),
+      ("salary", "salary"), ("pay", "salary"), ("income", "salary"), ("wage", "salary"),
     ]
     for (keyword, category) in rules {
       if text.contains(keyword) { return category }
@@ -135,13 +138,14 @@ struct AddExpenseIntent: AppIntent {
         category TEXT NOT NULL,
         note TEXT,
         date TEXT NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'expense'
       );
       """
     guard sqlite3_exec(db, create, nil, nil, nil) == SQLITE_OK else {
       throw AddExpenseError.writeFailed
     }
-    let insert = "INSERT INTO expenses (id, amount, category, note, date, created_at) VALUES (?, ?, ?, ?, ?, ?);"
+    let insert = "INSERT INTO expenses (id, amount, category, note, date, created_at, kind) VALUES (?, ?, ?, ?, ?, ?, ?);"
     var stmt: OpaquePointer?
     guard sqlite3_prepare_v2(db, insert, -1, &stmt, nil) == SQLITE_OK else {
       throw AddExpenseError.writeFailed
@@ -157,10 +161,13 @@ struct AddExpenseIntent: AppIntent {
     }
     sqlite3_bind_text(stmt, 5, (now as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
     sqlite3_bind_text(stmt, 6, (now as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+    let finalKind = finalCategory == "salary" ? "income" : "expense"
+    sqlite3_bind_text(stmt, 7, (finalKind as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
     guard sqlite3_step(stmt) == SQLITE_DONE else {
       throw AddExpenseError.writeFailed
     }
-    return .result(dialog: "Saved \\(Int(amount)) rupees for \\(cleanNote.isEmpty ? finalCategory : cleanNote).")
+    let kindWord = finalKind == "income" ? "earned" : "spent"
+    return .result(dialog: "Saved \\(Int(amount)) rupees \\(kindWord) for \\(cleanNote.isEmpty ? finalCategory : cleanNote).")
   }
 }
 

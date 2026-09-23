@@ -7,10 +7,11 @@ import {
   insertExpense,
   updateExpense,
   type CategoryId,
+  type EntryKind,
   type Expense,
 } from "./queries";
 
-export type { CategoryId, Expense };
+export type { CategoryId, EntryKind, Expense };
 
 export const CATEGORIES: { id: CategoryId; name: string; icon: string }[] = [
   { id: "food", name: "Food", icon: "food" },
@@ -21,6 +22,7 @@ export const CATEGORIES: { id: CategoryId; name: string; icon: string }[] = [
   { id: "entertainment", name: "Entertainment", icon: "movie-open" },
   { id: "health", name: "Health", icon: "heart-pulse" },
   { id: "travel", name: "Travel", icon: "airplane" },
+  { id: "salary", name: "Salary", icon: "briefcase" },
   { id: "other", name: "Other", icon: "dots-horizontal" },
 ];
 
@@ -54,6 +56,11 @@ const CATEGORY_ALIASES: Record<string, CategoryId> = {
   recharge: "bills",
   clothes: "shopping",
   clothing: "shopping",
+  salary: "salary",
+  pay: "salary",
+  paycheck: "salary",
+  income: "salary",
+  wages: "salary",
 };
 
 /**
@@ -80,6 +87,7 @@ export type AddExpenseInput = {
   category: string;
   note?: string | null;
   date?: Date | string;
+  kind?: EntryKind;
 };
 
 export type UpdateExpenseInput = AddExpenseInput & { id: string };
@@ -104,6 +112,7 @@ function validateInput(input: AddExpenseInput): {
   category: CategoryId;
   note: string | null;
   date: string;
+  kind: EntryKind;
 } {
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     throw new ValidationError("Amount must be greater than 0.");
@@ -111,6 +120,7 @@ function validateInput(input: AddExpenseInput): {
   if (!input.category || !CATEGORY_IDS.has(input.category)) {
     throw new ValidationError("Please choose a valid category.");
   }
+  const kind: EntryKind = input.kind === "income" ? "income" : "expense";
   const note =
     input.note == null || input.note.trim() === "" ? null : input.note.trim();
   return {
@@ -118,6 +128,7 @@ function validateInput(input: AddExpenseInput): {
     category: input.category as CategoryId,
     note,
     date: toISODate(input.date),
+    kind,
   };
 }
 
@@ -213,11 +224,16 @@ function isSameDay(a: Date, b: Date): boolean {
   );
 }
 
+function isThisMonth(dateISO: string, now: Date): boolean {
+  const d = new Date(dateISO);
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+}
+
 export async function getTodayTotal(db: SQLiteDatabase): Promise<number> {
   const expenses = await listExpenses(db);
   const now = new Date();
   return expenses
-    .filter((e) => isSameDay(new Date(e.date), now))
+    .filter((e) => e.kind === "expense" && isSameDay(new Date(e.date), now))
     .reduce((sum, e) => sum + e.amount, 0);
 }
 
@@ -225,11 +241,24 @@ export async function getMonthTotal(db: SQLiteDatabase): Promise<number> {
   const expenses = await listExpenses(db);
   const now = new Date();
   return expenses
-    .filter((e) => {
-      const d = new Date(e.date);
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-    })
+    .filter((e) => e.kind === "expense" && isThisMonth(e.date, now))
     .reduce((sum, e) => sum + e.amount, 0);
+}
+
+export async function getMonthIncome(db: SQLiteDatabase): Promise<number> {
+  const expenses = await listExpenses(db);
+  const now = new Date();
+  return expenses
+    .filter((e) => e.kind === "income" && isThisMonth(e.date, now))
+    .reduce((sum, e) => sum + e.amount, 0);
+}
+
+export async function getMonthBalance(db: SQLiteDatabase): Promise<number> {
+  const [income, spent] = await Promise.all([
+    getMonthIncome(db),
+    getMonthTotal(db),
+  ]);
+  return income - spent;
 }
 
 export async function getCategoryTotals(
@@ -250,10 +279,9 @@ export async function getMonthCategoryTotals(
 ): Promise<{ total: number; byCategory: { id: CategoryId; amount: number }[] }> {
   const expenses = await listExpenses(db);
   const now = new Date();
-  const monthExpenses = expenses.filter((e) => {
-    const d = new Date(e.date);
-    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-  });
+  const monthExpenses = expenses.filter(
+    (e) => e.kind === "expense" && isThisMonth(e.date, now)
+  );
   const sums = new Map<CategoryId, number>();
   let total = 0;
   for (const e of monthExpenses) {

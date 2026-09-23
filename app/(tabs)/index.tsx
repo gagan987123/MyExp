@@ -8,6 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryIcon from "@/components/CategoryIcon";
 import {
   CATEGORIES,
+  getMonthIncome,
   getMonthTotal,
   listExpenses,
   type Expense,
@@ -33,15 +34,18 @@ export default function HomeScreen() {
   const db = useSQLiteContext();
   const router = useRouter();
   const [monthTotal, setMonthTotal] = useState(0);
+  const [monthIncome, setMonthIncome] = useState(0);
   const [recent, setRecent] = useState<Expense[]>([]);
 
   const load = useCallback(async () => {
     try {
-      const [total, all] = await Promise.all([
+      const [total, income, all] = await Promise.all([
         getMonthTotal(db),
+        getMonthIncome(db),
         listExpenses(db),
       ]);
       setMonthTotal(total);
+      setMonthIncome(income);
       setRecent(all.slice(0, 4));
     } catch {
       // v1: silent fail, empty state covers it
@@ -93,6 +97,14 @@ export default function HomeScreen() {
             </Text>
             <Text className="home-balance-date">{monthName}</Text>
           </View>
+          <View className="home-balance-row" style={{ marginTop: 4 }}>
+            <Text className="home-balance-date">
+              Earned {formatINR(monthIncome)}
+            </Text>
+            <Text className="home-balance-date">
+              Balance {formatINR(monthIncome - monthTotal)}
+            </Text>
+          </View>
         </View>
 
         <View className="list-head">
@@ -120,7 +132,10 @@ export default function HomeScreen() {
                   style={{ marginRight: 0, width: "48%", aspectRatio: 1 }}
                 >
                   <View className="upcoming-row">
-                    <CategoryIcon name={meta.icon} />
+                    <CategoryIcon
+                      name={meta.icon}
+                      tone={e.kind === "income" ? "income" : "default"}
+                    />
                     <View>
                       <Text className="upcoming-price">
                         {formatINR(e.amount)}

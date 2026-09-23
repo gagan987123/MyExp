@@ -101,6 +101,7 @@ export default function ExpenseDetailsScreen() {
                 category: expense.category,
                 note: expense.note,
                 date: expense.date,
+                kind: expense.kind,
               }}
               submitLabel="Save changes"
               onSubmit={async (value) => {
@@ -138,6 +139,12 @@ export default function ExpenseDetailsScreen() {
 
             <View className="sub-card" style={{ marginTop: 16 }}>
               <View className="sub-details">
+                <View className="sub-row">
+                  <Text className="sub-label">Type</Text>
+                  <Text className="sub-value">
+                    {expense.kind === "income" ? "Money in" : "Money out"}
+                  </Text>
+                </View>
                 <View className="sub-row">
                   <Text className="sub-label">Note</Text>
                   <Text className="sub-value" numberOfLines={2}>

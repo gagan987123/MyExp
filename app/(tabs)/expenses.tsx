@@ -5,7 +5,7 @@ import { useCallback, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryIcon from "@/components/CategoryIcon";
-import { CATEGORIES, getMonthCategoryTotals, listExpenses, type CategoryId, type Expense } from "@/lib/service";
+import { CATEGORIES, getMonthCategoryTotals, getMonthIncome, listExpenses, type CategoryId, type Expense } from "@/lib/service";
 
 function formatINR(amount: number): string {
   try {
@@ -60,24 +60,28 @@ export default function ExpensesScreen() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [count, setCount] = useState(0);
   const [monthTotal, setMonthTotal] = useState(0);
+  const [monthIncome, setMonthIncome] = useState(0);
   const [monthBreakdown, setMonthBreakdown] = useState<
     { id: CategoryId; amount: number }[]
   >([]);
 
   const load = useCallback(async () => {
     try {
-      const [all, month] = await Promise.all([
+      const [all, month, income] = await Promise.all([
         listExpenses(db),
         getMonthCategoryTotals(db),
+        getMonthIncome(db),
       ]);
       setGroups(groupByDay(all, new Date()));
       setCount(all.length);
       setMonthTotal(month.total);
+      setMonthIncome(income);
       setMonthBreakdown(month.byCategory);
     } catch {
       setGroups([]);
       setCount(0);
       setMonthTotal(0);
+      setMonthIncome(0);
       setMonthBreakdown([]);
     }
   }, [db]);
@@ -105,6 +109,11 @@ export default function ExpensesScreen() {
             {new Date().toLocaleString("en-IN", { month: "long" })}
           </Text>
           <Text className="home-balance-amount">{formatINR(monthTotal)}</Text>
+          {monthIncome > 0 ? (
+            <Text className="home-balance-date" style={{ marginTop: 4 }}>
+              Earned {formatINR(monthIncome)}
+            </Text>
+          ) : null}
           {monthBreakdown.map((b) => {
             const meta = categoryMeta(b.id);
             const pct =
@@ -174,7 +183,10 @@ export default function ExpensesScreen() {
                     >
                       <View className="sub-head">
                         <View className="sub-main">
-                          <CategoryIcon name={meta.icon} />
+                          <CategoryIcon
+                            name={meta.icon}
+                            tone={e.kind === "income" ? "income" : "default"}
+                          />
                           <View className="sub-copy">
                             <Text className="sub-title">{meta.name}</Text>
                             <Text className="sub-meta" numberOfLines={1}>
