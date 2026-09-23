@@ -180,6 +180,10 @@ const WIDGET_INFO_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
   <string>$(EXECUTABLE_NAME)</string>
   <key>CFBundlePackageType</key>
   <string>XPC!</string>
+  <key>CFBundleName</key>
+  <string>$(PRODUCT_NAME)</string>
+  <key>CFBundleDisplayName</key>
+  <string>MyExp</string>
   <key>NSExtension</key>
   <dict>
     <key>NSExtensionPointIdentifier</key>
