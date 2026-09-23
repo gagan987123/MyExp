@@ -176,6 +176,10 @@ const WIDGET_INFO_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
   <string>1.0.0</string>
   <key>CFBundleVersion</key>
   <string>1</string>
+  <key>CFBundleExecutable</key>
+  <string>$(EXECUTABLE_NAME)</string>
+  <key>CFBundlePackageType</key>
+  <string>XPC!</string>
   <key>NSExtension</key>
   <dict>
     <key>NSExtensionPointIdentifier</key>
