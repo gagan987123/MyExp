@@ -27,6 +27,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 const ADD_EXPENSE_INTENT_SWIFT = `import AppIntents
 import Foundation
 import SQLite3
+import WidgetKit
 
 /// "Hey Siri, log expense in MyExp" — saves DIRECTLY to the shared
 /// App Group SQLite file. The app stays closed; no JavaScript runs.
@@ -166,6 +167,7 @@ struct AddExpenseIntent: AppIntent {
     guard sqlite3_step(stmt) == SQLITE_DONE else {
       throw AddExpenseError.writeFailed
     }
+    WidgetCenter.shared.reloadTimelines(ofKind: "MyExpWidget")
     let kindWord = finalKind == "income" ? "earned" : "spent"
     return .result(dialog: "Saved \\(Int(amount)) rupees \\(kindWord) for \\(cleanNote.isEmpty ? finalCategory : cleanNote).")
   }

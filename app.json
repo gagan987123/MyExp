@@ -54,7 +54,8 @@
       "expo-status-bar",
       "expo-web-browser",
       "expo-sqlite",
-      "./plugins/withSiriIntents"
+      "./plugins/withSiriIntents",
+      "./plugins/withWidget"
     ],
     "experiments": {
       "typedRoutes": true,
