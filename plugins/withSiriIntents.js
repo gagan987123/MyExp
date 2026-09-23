@@ -115,15 +115,49 @@ struct AddExpenseIntent: AppIntent {
     return dir.appendingPathComponent("expenses.db")
   }
 
+  /// User-created categories from the shared table. Checked before the
+  /// keyword rules so a "Chai" category beats the food rule for "chai".
+  /// Returns id + kind (customs can be income too).
+  static func lookupCustomCategory(db: OpaquePointer?, hint: String?, note: String) -> (String, String)? {
+    let sql = "SELECT id, name, kind FROM categories;"
+    var stmt: OpaquePointer?
+    guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+      return nil
+    }
+    defer { sqlite3_finalize(stmt) }
+    var rows: [(String, String, String)] = []
+    while sqlite3_step(stmt) == SQLITE_ROW {
+      let id = String(cString: sqlite3_column_text(stmt, 0))
+      let name = String(cString: sqlite3_column_text(stmt, 1))
+      let kind = String(cString: sqlite3_column_text(stmt, 2))
+      rows.append((id, name, kind))
+    }
+    if let hint {
+      let key = hint.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+      if !key.isEmpty {
+        for (id, name, kind) in rows {
+          if id.lowercased() == key || name.lowercased() == key { return (id, kind) }
+        }
+      }
+    }
+    let text = note.lowercased()
+    for (id, name, kind) in rows {
+      let n = name.lowercased()
+      if n.count >= 3 && text.contains(n) { return (id, kind) }
+    }
+    return nil
+  }
+
   @MainActor
   func perform() async throws -> some IntentResult {
     guard amount.isFinite && amount > 0 else {
       throw AddExpenseError.invalidAmount
     }
-    let finalCategory = Self.resolveCategory(note: note, hint: category)
+    var finalCategory = Self.resolveCategory(note: note, hint: category)
     let now = ISO8601DateFormatter().string(from: Date())
     let id = UUID().uuidString
     let cleanNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+    var finalKind = finalCategory == "salary" ? "income" : "expense"
 
     let url = try Self.sharedDatabaseURL()
     var db: OpaquePointer?
@@ -132,6 +166,10 @@ struct AddExpenseIntent: AppIntent {
     }
     defer { sqlite3_close(db) }
     sqlite3_busy_timeout(db, 5000)
+    if let custom = Self.lookupCustomCategory(db: db, hint: category, note: note) {
+      finalCategory = custom.0
+      finalKind = custom.1 == "income" ? "income" : "expense"
+    }
     let create = """
       CREATE TABLE IF NOT EXISTS expenses (
         id TEXT PRIMARY KEY NOT NULL,
@@ -141,6 +179,13 @@ struct AddExpenseIntent: AppIntent {
         date TEXT NOT NULL,
         created_at TEXT NOT NULL,
         kind TEXT NOT NULL DEFAULT 'expense'
+      );
+      CREATE TABLE IF NOT EXISTS categories (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        icon TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'expense',
+        created_at TEXT NOT NULL
       );
       """
     guard sqlite3_exec(db, create, nil, nil, nil) == SQLITE_OK else {
@@ -162,7 +207,6 @@ struct AddExpenseIntent: AppIntent {
     }
     sqlite3_bind_text(stmt, 5, (now as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
     sqlite3_bind_text(stmt, 6, (now as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
-    let finalKind = finalCategory == "salary" ? "income" : "expense"
     sqlite3_bind_text(stmt, 7, (finalKind as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
     guard sqlite3_step(stmt) == SQLITE_DONE else {
       throw AddExpenseError.writeFailed

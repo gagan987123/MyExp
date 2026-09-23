@@ -6,8 +6,8 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ExpenseForm from "@/components/ExpenseForm";
 import CategoryIcon from "@/components/CategoryIcon";
+import { useCategories, findCategory } from "@/hooks/useCategories";
 import {
-  CATEGORIES,
   editExpense,
   fetchExpenseById,
   removeExpense,
@@ -65,13 +65,8 @@ export default function ExpenseDetailsScreen() {
     }
   }
 
-  const meta = expense
-    ? (CATEGORIES.find((c) => c.id === expense.category) ?? {
-        id: expense.category,
-        name: expense.category,
-        icon: "dots-horizontal",
-      })
-    : null;
+  const categories = useCategories();
+  const meta = expense ? findCategory(categories, expense.category) : null;
 
   return (
     <SafeAreaView

@@ -4,6 +4,7 @@ import { useSQLiteContext } from "expo-sqlite";
 import { ScrollView, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ExpenseForm from "@/components/ExpenseForm";
+import { useCategories } from "@/hooks/useCategories";
 import { addExpense, matchCategory } from "@/lib/service";
 
 /**
@@ -18,6 +19,7 @@ import { addExpense, matchCategory } from "@/lib/service";
 export default function AddExpenseScreen() {
   const db = useSQLiteContext();
   const router = useRouter();
+  const categories = useCategories();
   const params = useLocalSearchParams<{
     amount?: string;
     category?: string;
@@ -64,6 +66,7 @@ export default function AddExpenseScreen() {
             note: params.note,
             date: new Date(),
           }}
+          categories={categories}
           submitLabel="Add expense"
           autoSubmit={autoSubmit}
           onSubmit={async (value) => {

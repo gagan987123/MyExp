@@ -53,6 +53,22 @@ export default function SettingsScreen() {
         <Pressable
           className="sub-card"
           style={{ marginTop: 16 }}
+          onPress={() => router.push("/categories")}
+        >
+          <View className="sub-head">
+            <View className="sub-copy">
+              <Text className="sub-title">Categories</Text>
+              <Text className="sub-meta">
+                Built-ins plus your own, for forms and Siri.
+              </Text>
+            </View>
+            <Text className="auth-link">›</Text>
+          </View>
+        </Pressable>
+
+        <Pressable
+          className="sub-card"
+          style={{ marginTop: 16 }}
           onPress={() => router.push("/recurring")}
         >
           <View className="sub-head">

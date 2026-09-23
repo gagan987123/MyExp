@@ -1,36 +1,70 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 import {
   deleteAllExpenses,
+  deleteCustomCategory,
   deleteExpense,
   deleteRecurringTemplate,
   getAllExpenses,
+  getCustomCategories,
   getExpenseById,
   getRecurringTemplates,
+  insertCustomCategory,
   insertExpense,
   insertRecurringTemplate,
   setRecurringActive,
   updateExpense,
   updateRecurringPostedCount,
   type CategoryId,
+  type CustomCategory,
   type EntryKind,
   type Expense,
   type RecurringTemplate,
 } from "./queries";
 
-export type { CategoryId, EntryKind, Expense, RecurringTemplate };
+export type { CategoryId, CustomCategory, EntryKind, Expense, RecurringTemplate };
 
-export const CATEGORIES: { id: CategoryId; name: string; icon: string }[] = [
-  { id: "food", name: "Food", icon: "food" },
-  { id: "transport", name: "Transport", icon: "bus" },
-  { id: "petrol", name: "Petrol", icon: "gas-station" },
-  { id: "shopping", name: "Shopping", icon: "shopping" },
-  { id: "bills", name: "Bills", icon: "receipt-text" },
-  { id: "entertainment", name: "Entertainment", icon: "movie-open" },
-  { id: "health", name: "Health", icon: "heart-pulse" },
-  { id: "travel", name: "Travel", icon: "airplane" },
-  { id: "salary", name: "Salary", icon: "briefcase" },
-  { id: "other", name: "Other", icon: "dots-horizontal" },
+export type CategoryEntry = {
+  id: string;
+  name: string;
+  icon: string;
+  kind: EntryKind;
+  builtin: boolean;
+};
+
+export const DEFAULT_CATEGORIES: CategoryEntry[] = [
+  { id: "food", name: "Food", icon: "food", kind: "expense", builtin: true },
+  { id: "transport", name: "Transport", icon: "bus", kind: "expense", builtin: true },
+  { id: "petrol", name: "Petrol", icon: "gas-station", kind: "expense", builtin: true },
+  { id: "shopping", name: "Shopping", icon: "shopping", kind: "expense", builtin: true },
+  { id: "bills", name: "Bills", icon: "receipt-text", kind: "expense", builtin: true },
+  { id: "entertainment", name: "Entertainment", icon: "movie-open", kind: "expense", builtin: true },
+  { id: "health", name: "Health", icon: "heart-pulse", kind: "expense", builtin: true },
+  { id: "travel", name: "Travel", icon: "airplane", kind: "expense", builtin: true },
+  { id: "salary", name: "Salary", icon: "briefcase", kind: "income", builtin: true },
+  { id: "other", name: "Other", icon: "dots-horizontal", kind: "expense", builtin: true },
 ];
+
+/** Defaults + user customs, for pickers and lookups. */
+export async function getCategories(db: SQLiteDatabase): Promise<CategoryEntry[]> {
+  try {
+    const customs = await getCustomCategories(db);
+    return [
+      ...DEFAULT_CATEGORIES,
+      ...customs.map((c) => ({
+        id: c.id,
+        name: c.name,
+        icon: c.icon,
+        kind: c.kind,
+        builtin: false,
+      })),
+    ];
+  } catch (error) {
+    toUserMessage(error);
+  }
+}
+
+/** @deprecated Use DEFAULT_CATEGORIES or getCategories(db). */
+export const CATEGORIES = DEFAULT_CATEGORIES;
 
 const CATEGORY_IDS = new Set<string>(CATEGORIES.map((c) => c.id));
 
@@ -74,10 +108,10 @@ const CATEGORY_ALIASES: Record<string, CategoryId> = {
  * Accepts ids ("food"), names ("Food"), and common aliases ("cab" → transport).
  * Returns null when nothing matches (caller falls back to "other" or asks).
  */
-export function matchCategory(raw: string | null | undefined): CategoryId | null {
+export function matchCategory(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const key = raw.trim().toLowerCase();
-  if (CATEGORY_IDS.has(key)) return key as CategoryId;
+  if (CATEGORY_IDS.has(key)) return key;
   for (const c of CATEGORIES) {
     if (c.name.toLowerCase() === key) return c.id;
   }
@@ -113,9 +147,12 @@ function toISODate(input?: Date | string): string {
   return d.toISOString();
 }
 
-function validateInput(input: AddExpenseInput): {
+function validateInput(
+  input: AddExpenseInput,
+  allowedIds: Set<string>
+): {
   amount: number;
-  category: CategoryId;
+  category: string;
   note: string | null;
   date: string;
   kind: EntryKind;
@@ -123,7 +160,7 @@ function validateInput(input: AddExpenseInput): {
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     throw new ValidationError("Amount must be greater than 0.");
   }
-  if (!input.category || !CATEGORY_IDS.has(input.category)) {
+  if (!input.category || !allowedIds.has(input.category)) {
     throw new ValidationError("Please choose a valid category.");
   }
   const kind: EntryKind = input.kind === "income" ? "income" : "expense";
@@ -131,11 +168,25 @@ function validateInput(input: AddExpenseInput): {
     input.note == null || input.note.trim() === "" ? null : input.note.trim();
   return {
     amount: input.amount,
-    category: input.category as CategoryId,
+    category: input.category,
     note,
     date: toISODate(input.date),
     kind,
   };
+}
+
+/** Built-in ids plus user customs — the valid set for saving entries. */
+export async function allowedCategoryIds(
+  db: SQLiteDatabase
+): Promise<Set<string>> {
+  const ids = new Set<string>(CATEGORY_IDS);
+  try {
+    const customs = await getCustomCategories(db);
+    for (const c of customs) ids.add(c.id);
+  } catch {
+    // Pre-v4: defaults only.
+  }
+  return ids;
 }
 
 function toUserMessage(error: unknown): never {
@@ -152,7 +203,7 @@ export async function addExpense(
   db: SQLiteDatabase,
   input: AddExpenseInput
 ): Promise<Expense> {
-  const valid = validateInput(input);
+  const valid = validateInput(input, await allowedCategoryIds(db));
   const now = new Date().toISOString();
   const expense: Expense = { id: generateId(), ...valid, createdAt: now };
   try {
@@ -188,7 +239,7 @@ export async function editExpense(
   db: SQLiteDatabase,
   input: UpdateExpenseInput
 ): Promise<Expense> {
-  const valid = validateInput(input);
+  const valid = validateInput(input, await allowedCategoryIds(db));
   try {
     const existing = await getExpenseById(db, input.id);
     if (!existing) throw new NotFoundError("Expense not found.");
@@ -235,11 +286,14 @@ export type AddRecurringInput = {
   totalInstallments?: number | null;
 };
 
-function validateRecurringInput(input: AddRecurringInput) {
+function validateRecurringInput(
+  input: AddRecurringInput,
+  allowedIds: Set<string>
+) {
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     throw new ValidationError("Amount must be greater than 0.");
   }
-  if (!input.category || !CATEGORY_IDS.has(input.category)) {
+  if (!input.category || !allowedIds.has(input.category)) {
     throw new ValidationError("Please choose a valid category.");
   }
   if (!Number.isInteger(input.dayOfMonth) || input.dayOfMonth < 1 || input.dayOfMonth > 28) {
@@ -262,7 +316,7 @@ function validateRecurringInput(input: AddRecurringInput) {
   return {
     kind: input.kind === "income" ? ("income" as EntryKind) : ("expense" as EntryKind),
     amount: input.amount,
-    category: input.category as CategoryId,
+    category: input.category,
     note:
       input.note == null || input.note.trim() === ""
         ? null
@@ -278,7 +332,7 @@ export async function addRecurringTemplate(
   db: SQLiteDatabase,
   input: AddRecurringInput
 ): Promise<RecurringTemplate> {
-  const valid = validateRecurringInput(input);
+  const valid = validateRecurringInput(input, await allowedCategoryIds(db));
   const template: RecurringTemplate = {
     id: generateId(),
     ...valid,
@@ -447,11 +501,9 @@ export async function getMonthBalance(db: SQLiteDatabase): Promise<number> {
 
 export async function getCategoryTotals(
   db: SQLiteDatabase
-): Promise<Record<CategoryId, number>> {
+): Promise<Record<string, number>> {
   const expenses = await listExpenses(db);
-  const totals = Object.fromEntries(
-    CATEGORIES.map((c) => [c.id, 0])
-  ) as Record<CategoryId, number>;
+  const totals: Record<string, number> = {};
   for (const e of expenses) {
     totals[e.category] = (totals[e.category] ?? 0) + e.amount;
   }
@@ -460,12 +512,12 @@ export async function getCategoryTotals(
 
 export async function getMonthCategoryTotals(
   db: SQLiteDatabase
-): Promise<{ total: number; byCategory: { id: CategoryId; amount: number }[] }> {  const expenses = await listExpenses(db);
+): Promise<{ total: number; byCategory: { id: string; amount: number }[] }> {  const expenses = await listExpenses(db);
   const now = new Date();
   const monthExpenses = expenses.filter(
     (e) => e.kind === "expense" && isThisMonth(e.date, now)
   );
-  const sums = new Map<CategoryId, number>();
+  const sums = new Map<string, number>();
   let total = 0;
   for (const e of monthExpenses) {
     total += e.amount;
@@ -475,6 +527,108 @@ export async function getMonthCategoryTotals(
     .map(([id, amount]) => ({ id, amount }))
     .sort((a, b) => b.amount - a.amount);
   return { total, byCategory };
+}
+
+export type AddCustomCategoryInput = {
+  name: string;
+  icon: string;
+  kind?: EntryKind;
+};
+
+/** Icons users may pick for custom categories. */
+export const CATEGORY_ICON_CHOICES = [
+  "food", "bus", "gas-station", "shopping", "receipt-text", "movie-open",
+  "heart-pulse", "airplane", "briefcase", "dots-horizontal",
+  "coffee", "cart", "bike", "car", "train", "home", "school",
+  "hospital-box", "pill", "dumbbell", "gamepad-variant", "music",
+  "gift", "dog", "baby", "book-open", "wifi", "phone", "lightbulb",
+];
+
+const ICON_ALLOWLIST = new Set(CATEGORY_ICON_CHOICES);
+
+function slugify(name: string): string {
+  const slug = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 24);
+  return slug || "custom";
+}
+
+export async function addCustomCategory(
+  db: SQLiteDatabase,
+  input: AddCustomCategoryInput
+): Promise<CustomCategory> {
+  const name = input.name.trim();
+  if (name.length === 0 || name.length > 24) {
+    throw new ValidationError("Name must be 1–24 characters.");
+  }
+  if (!ICON_ALLOWLIST.has(input.icon)) {
+    throw new ValidationError("Pick an icon from the list.");
+  }
+  const kind: EntryKind = input.kind === "income" ? "income" : "expense";
+  const allowed = await allowedCategoryIds(db);
+  let id = slugify(name);
+  if (allowed.has(id)) {
+    id = `${id}-${Math.random().toString(36).slice(2, 6)}`;
+  }
+  const custom: CustomCategory = {
+    id,
+    name,
+    icon: input.icon,
+    kind,
+    createdAt: new Date().toISOString(),
+  };
+  try {
+    await insertCustomCategory(db, custom);
+    return custom;
+  } catch (error) {
+    toUserMessage(error);
+  }
+}
+
+export async function removeCustomCategory(
+  db: SQLiteDatabase,
+  id: string
+): Promise<void> {
+  try {
+    const [customs, expenses] = await Promise.all([
+      getCustomCategories(db),
+      getAllExpenses(db),
+    ]);
+    if (!customs.some((c) => c.id === id)) {
+      throw new ValidationError("Only custom categories can be deleted.");
+    }
+    if (expenses.some((e) => e.category === id)) {
+      throw new ValidationError(
+        "This category has expenses. Delete or recategorize them first."
+      );
+    }
+    await deleteCustomCategory(db, id);
+  } catch (error) {
+    toUserMessage(error);
+  }
+}
+
+/** Defaults + customs. Voice/deep-link resolution with custom support. */
+export async function resolveCategory(
+  db: SQLiteDatabase,
+  raw: string | null | undefined
+): Promise<string | null> {
+  const builtin = matchCategory(raw);
+  if (builtin) return builtin;
+  if (!raw) return null;
+  const key = raw.trim().toLowerCase();
+  try {
+    const customs = await getCustomCategories(db);
+    for (const c of customs) {
+      if (c.id === key || c.name.toLowerCase() === key) return c.id;
+    }
+  } catch {
+    // ignore, fall through
+  }
+  return null;
 }
 
 export type MonthlyPoint = {

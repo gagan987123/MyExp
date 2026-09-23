@@ -5,7 +5,8 @@ import { useCallback, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryIcon from "@/components/CategoryIcon";
-import { CATEGORIES, getMonthCategoryTotals, getMonthIncome, listExpenses, type CategoryId, type Expense } from "@/lib/service";
+import { getMonthCategoryTotals, getMonthIncome, listExpenses, type Expense } from "@/lib/service";
+import { useCategories, findCategory } from "@/hooks/useCategories";
 
 function formatINR(amount: number): string {
   try {
@@ -19,8 +20,8 @@ function formatINR(amount: number): string {
   }
 }
 
-function categoryMeta(id: string) {
-  return CATEGORIES.find((c) => c.id === id) ?? { id, name: id, icon: "dots-horizontal" };
+function categoryMeta(categories: ReturnType<typeof useCategories>, id: string) {
+  return findCategory(categories, id);
 }
 
 function startOfDay(d: Date): Date {
@@ -57,12 +58,13 @@ function groupByDay(expenses: Expense[], now: Date): Group[] {
 export default function ExpensesScreen() {
   const db = useSQLiteContext();
   const router = useRouter();
+  const categories = useCategories();
   const [groups, setGroups] = useState<Group[]>([]);
   const [count, setCount] = useState(0);
   const [monthTotal, setMonthTotal] = useState(0);
   const [monthIncome, setMonthIncome] = useState(0);
   const [monthBreakdown, setMonthBreakdown] = useState<
-    { id: CategoryId; amount: number }[]
+    { id: string; amount: number }[]
   >([]);
 
   const load = useCallback(async () => {
@@ -115,7 +117,7 @@ export default function ExpensesScreen() {
             </Text>
           ) : null}
           {monthBreakdown.map((b) => {
-            const meta = categoryMeta(b.id);
+            const meta = categoryMeta(categories, b.id);
             const pct =
               monthTotal > 0 ? Math.round((b.amount / monthTotal) * 100) : 0;
             return (
@@ -174,7 +176,7 @@ export default function ExpensesScreen() {
               </View>
               <View className="my-5 gap-3" style={{ marginTop: 0, marginBottom: 0 }}>
                 {g.items.map((e) => {
-                  const meta = categoryMeta(e.category);
+                  const meta = categoryMeta(categories, e.category);
                   return (
                     <Pressable
                       key={e.id}

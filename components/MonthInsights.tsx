@@ -1,13 +1,12 @@
 import { PieChart, BarChart } from "react-native-gifted-charts";
 import { Text, View } from "react-native";
 import CategoryIcon from "@/components/CategoryIcon";
+import { useCategories, findCategory } from "@/hooks/useCategories";
 import {
-  CATEGORIES,
-  type CategoryId,
   type MonthlyPoint,
 } from "@/lib/service";
 
-export const CATEGORY_COLORS: Record<CategoryId, string> = {
+export const CATEGORY_COLORS: Record<string, string> = {
   food: "#ff7a45",
   transport: "#60a5fa",
   petrol: "#fbbf24",
@@ -32,9 +31,10 @@ export default function MonthInsights({
   history,
 }: {
   total: number;
-  byCategory: { id: CategoryId; amount: number }[];
+  byCategory: { id: string; amount: number }[];
   history: MonthlyPoint[];
 }) {
+  const categories = useCategories();
   if (total <= 0) return null;
 
   const top = byCategory.slice(0, 5);
@@ -50,18 +50,19 @@ export default function MonthInsights({
       : []),
   ];
   const legend = [
-    ...top.map((b) => ({
-      ...b,
-      name:
-        CATEGORIES.find((c) => c.id === b.id)?.name ?? b.id,
-      icon:
-        CATEGORIES.find((c) => c.id === b.id)?.icon ?? "dots-horizontal",
-      color: CATEGORY_COLORS[b.id] ?? "#94a3b8",
-    })),
+    ...top.map((b) => {
+      const meta = findCategory(categories, b.id);
+      return {
+        ...b,
+        name: meta.name,
+        icon: meta.icon,
+        color: CATEGORY_COLORS[b.id] ?? "#94a3b8",
+      };
+    }),
     ...(restTotal > 0
       ? [
           {
-            id: "other" as CategoryId,
+            id: "other",
             amount: restTotal,
             name: "Other",
             icon: "dots-horizontal",

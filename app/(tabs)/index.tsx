@@ -2,13 +2,13 @@ import "@/global.css";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryIcon from "@/components/CategoryIcon";
 import MonthInsights from "@/components/MonthInsights";
+import { useCategories, findCategory } from "@/hooks/useCategories";
 import {
-  CATEGORIES,
   getMonthCategoryTotals,
   getMonthIncome,
   getMonthTotal,
@@ -16,7 +16,6 @@ import {
   listExpenses,
   listRecurringTemplates,
   postDueRecurring,
-  type CategoryId,
   type Expense,
   type MonthlyPoint,
 } from "@/lib/service";
@@ -33,19 +32,20 @@ function formatINR(amount: number): string {
   }
 }
 
-function categoryMeta(id: string) {
-  return CATEGORIES.find((c) => c.id === id) ?? { id, name: id, icon: "dots-horizontal" };
+function categoryMeta(categories: ReturnType<typeof useCategories>, id: string) {
+  return findCategory(categories, id);
 }
 
 export default function HomeScreen() {
   const db = useSQLiteContext();
   const router = useRouter();
+  const categories = useCategories();
   const [monthTotal, setMonthTotal] = useState(0);
   const [monthIncome, setMonthIncome] = useState(0);
   const [recent, setRecent] = useState<Expense[]>([]);
   const [hasRecurring, setHasRecurring] = useState(true);
   const [breakdown, setBreakdown] = useState<
-    { id: CategoryId; amount: number }[]
+    { id: string; amount: number }[]
   >([]);
   const [history, setHistory] = useState<MonthlyPoint[]>([]);
 
@@ -177,7 +177,7 @@ export default function HomeScreen() {
         ) : (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
             {recent.map((e) => {
-              const meta = categoryMeta(e.category);
+              const meta = categoryMeta(categories, e.category);
               return (
                 <View
                   key={e.id}

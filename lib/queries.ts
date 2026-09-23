@@ -17,7 +17,8 @@ export type EntryKind = "expense" | "income";
 export type Expense = {
   id: string;
   amount: number;
-  category: CategoryId;
+  /** Built-in CategoryId or a custom category id. */
+  category: string;
   note: string | null;
   /** ISO date string for the entry day */
   date: string;
@@ -41,7 +42,7 @@ function mapRow(row: ExpenseRow): Expense {
   return {
     id: row.id,
     amount: row.amount,
-    category: row.category as CategoryId,
+    category: row.category,
     note: row.note,
     date: row.date,
     createdAt: row.created_at,
@@ -86,7 +87,7 @@ export async function getExpenseById(
 export async function updateExpense(
   db: SQLiteDatabase,
   id: string,
-  patch: { amount: number; category: CategoryId; note: string | null; date: string; kind: EntryKind }
+  patch: { amount: number; category: string; note: string | null; date: string; kind: EntryKind }
 ): Promise<void> {
   await db.runAsync(
     "UPDATE expenses SET amount = ?, category = ?, note = ?, date = ?, kind = ? WHERE id = ?",
@@ -114,7 +115,7 @@ export type RecurringTemplate = {
   id: string;
   kind: EntryKind;
   amount: number;
-  category: CategoryId;
+  category: string;
   note: string | null;
   /** Day of month, 1–28. */
   dayOfMonth: number;
@@ -148,7 +149,7 @@ function mapTemplateRow(row: RecurringTemplateRow): RecurringTemplate {
     id: row.id,
     kind: row.kind === "income" ? "income" : "expense",
     amount: row.amount,
-    category: row.category as CategoryId,
+    category: row.category,
     note: row.note,
     dayOfMonth: row.day_of_month,
     startYear: row.start_year,
@@ -215,4 +216,65 @@ export async function deleteRecurringTemplate(
   id: string
 ): Promise<void> {
   await db.runAsync("DELETE FROM recurring_templates WHERE id = ?", id);
+}
+
+export type CustomCategory = {
+  id: string;
+  name: string;
+  icon: string;
+  kind: EntryKind;
+  createdAt: string;
+};
+
+type CustomCategoryRow = {
+  id: string;
+  name: string;
+  icon: string;
+  kind: string;
+  created_at: string;
+};
+
+function mapCustomCategoryRow(row: CustomCategoryRow): CustomCategory {
+  return {
+    id: row.id,
+    name: row.name,
+    icon: row.icon,
+    kind: row.kind === "income" ? "income" : "expense",
+    createdAt: row.created_at,
+  };
+}
+
+export async function insertCustomCategory(
+  db: SQLiteDatabase,
+  c: CustomCategory
+): Promise<void> {
+  await db.runAsync(
+    "INSERT INTO categories (id, name, icon, kind, created_at) VALUES (?, ?, ?, ?, ?)",
+    c.id,
+    c.name,
+    c.icon,
+    c.kind,
+    c.createdAt
+  );
+}
+
+export async function getCustomCategories(
+  db: SQLiteDatabase
+): Promise<CustomCategory[]> {
+  try {
+    const rows = await db.getAllAsync<CustomCategoryRow>(
+      "SELECT id, name, icon, kind, created_at FROM categories ORDER BY created_at"
+    );
+    return rows.map(mapCustomCategoryRow);
+  } catch {
+    // Pre-v4 database (or Siri hitting an old file): no customs.
+    return [];
+  }
+}
+
+export async function deleteCustomCategory(
+  db: SQLiteDatabase,
+  id: string
+): Promise<void> {
+  await db.runAsync("DELETE FROM categories WHERE id = ?", id);
 }

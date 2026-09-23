@@ -5,10 +5,9 @@ import { useCallback, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryIcon from "@/components/CategoryIcon";
+import { useCategories, findCategory } from "@/hooks/useCategories";
 import {
-  CATEGORIES,
   listExpenses,
-  type CategoryId,
   type Expense,
 } from "@/lib/service";
 
@@ -45,14 +44,11 @@ export default function CategoryExpensesScreen() {
   const { category } = useLocalSearchParams<{ category: string }>();
   const db = useSQLiteContext();
   const router = useRouter();
+  const categories = useCategories();
   const [items, setItems] = useState<Expense[]>([]);
   const [total, setTotal] = useState(0);
 
-  const meta = CATEGORIES.find((c) => c.id === category) ?? {
-    id: category ?? "other",
-    name: category ?? "Other",
-    icon: "dots-horizontal",
-  };
+  const meta = findCategory(categories, category ?? "other");
   const monthName = new Date().toLocaleString("en-IN", { month: "long" });
 
   const load = useCallback(async () => {

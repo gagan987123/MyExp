@@ -5,14 +5,13 @@ import { useCallback, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryIcon from "@/components/CategoryIcon";
+import { useCategories, findCategory } from "@/hooks/useCategories";
 import {
-  CATEGORIES,
   ValidationError,
   addRecurringTemplate,
   listRecurringTemplates,
   removeRecurringTemplate,
   setRecurringTemplateActive,
-  type CategoryId,
   type EntryKind,
   type RecurringTemplate,
 } from "@/lib/service";
@@ -39,12 +38,13 @@ function ordinal(n: number): string {
 export default function RecurringScreen() {
   const db = useSQLiteContext();
   const router = useRouter();
+  const categories = useCategories();
   const [templates, setTemplates] = useState<RecurringTemplate[]>([]);
   const [showForm, setShowForm] = useState(false);
 
   const [kind, setKind] = useState<EntryKind>("expense");
   const [amountText, setAmountText] = useState("");
-  const [category, setCategory] = useState<CategoryId | null>(null);
+  const [category, setCategory] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [day, setDay] = useState(5);
   const [installmentsText, setInstallmentsText] = useState("");
@@ -125,11 +125,7 @@ export default function RecurringScreen() {
         </Text>
 
         {templates.map((t) => {
-          const meta = CATEGORIES.find((c) => c.id === t.category) ?? {
-            id: t.category,
-            name: t.category,
-            icon: "dots-horizontal",
-          };
+          const meta = findCategory(categories, t.category);
           return (
             <View key={t.id} className="sub-card" style={{ marginBottom: 12 }}>
               <View className="sub-head">
@@ -226,7 +222,7 @@ export default function RecurringScreen() {
               <View className="auth-field">
                 <Text className="auth-label">Category</Text>
                 <View className="category-scroll">
-                  {CATEGORIES.map((c) => {
+                  {categories.map((c) => {
                     const active = category === c.id;
                     return (
                       <Pressable

@@ -2,15 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import CategoryIcon from "@/components/CategoryIcon";
 import {
-  CATEGORIES,
+  DEFAULT_CATEGORIES,
   ValidationError,
-  type CategoryId,
+  type CategoryEntry,
   type EntryKind,
 } from "@/lib/service";
 
 export type ExpenseFormValue = {
   amount: number;
-  category: CategoryId;
+  category: string;
   note: string | null;
   date: Date;
   kind: EntryKind;
@@ -18,7 +18,7 @@ export type ExpenseFormValue = {
 
 export type ExpenseFormInitial = {
   amount?: number;
-  category?: CategoryId;
+  category?: string;
   note?: string | null;
   date?: Date | string;
   kind?: EntryKind;
@@ -52,17 +52,19 @@ export default function ExpenseForm({
   submitLabel,
   onSubmit,
   autoSubmit,
+  categories = DEFAULT_CATEGORIES,
 }: {
   initial?: ExpenseFormInitial;
   submitLabel: string;
   onSubmit: (value: ExpenseFormValue) => Promise<void>;
   /** Submit once on mount (deep-link / Siri intake). Only fires when valid. */
   autoSubmit?: boolean;
+  categories?: CategoryEntry[];
 }) {
   const [amountText, setAmountText] = useState(
     initial?.amount != null ? String(initial.amount) : ""
   );
-  const [category, setCategory] = useState<CategoryId | null>(
+  const [category, setCategory] = useState<string | null>(
     initial?.category ?? null
   );
   const [note, setNote] = useState(initial?.note ?? "");
@@ -167,7 +169,7 @@ export default function ExpenseForm({
         <View className="auth-field">
           <Text className="auth-label">Category</Text>
           <View className="category-scroll">
-            {CATEGORIES.map((c) => {
+            {categories.map((c) => {
               const active = category === c.id;
               return (
                 <Pressable
