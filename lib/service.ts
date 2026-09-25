@@ -1,4 +1,6 @@
 import type { SQLiteDatabase } from "expo-sqlite";
+import { requireNativeModule } from "expo-modules-core";
+import { reloadWidgetTimelines } from "widget-reload";
 import {
   deleteAllExpenses,
   deleteCustomCategory,
@@ -196,6 +198,21 @@ function toUserMessage(error: unknown): never {
   throw new DatabaseError("Something went wrong saving your expense.");
 }
 
+/** Nudge the home-screen widget after data changes. Fire-and-forget. */
+function pokeWidget(): void {
+  reloadWidgetTimelines().catch(() => {});
+}
+
+/** Diagnostic: does the native widget bridge exist in this build? */
+export function checkWidgetBridge(): string {
+  try {
+    requireNativeModule("WidgetReload");
+    return "bridge: native module present";
+  } catch (e) {
+    return `bridge missing: ${e instanceof Error ? e.message : String(e)}`;
+  }
+}
+
 // NOTE: every function takes `db` as the first arg and imports nothing
 // from React. A future Siri / Assistant bridge can call these directly.
 
@@ -208,6 +225,7 @@ export async function addExpense(
   const expense: Expense = { id: generateId(), ...valid, createdAt: now };
   try {
     await insertExpense(db, expense);
+    pokeWidget();
     return expense;
   } catch (error) {
     toUserMessage(error);
@@ -244,6 +262,7 @@ export async function editExpense(
     const existing = await getExpenseById(db, input.id);
     if (!existing) throw new NotFoundError("Expense not found.");
     await updateExpense(db, input.id, valid);
+    pokeWidget();
     return { ...existing, ...valid };
   } catch (error) {
     toUserMessage(error);
@@ -258,6 +277,7 @@ export async function removeExpense(
     const existing = await getExpenseById(db, id);
     if (!existing) throw new NotFoundError("Expense not found.");
     await deleteExpense(db, id);
+    pokeWidget();
   } catch (error) {
     toUserMessage(error);
   }
@@ -266,6 +286,7 @@ export async function removeExpense(
 export async function clearAllExpenses(db: SQLiteDatabase): Promise<void> {
   try {
     await deleteAllExpenses(db);
+    pokeWidget();
   } catch (error) {
     toUserMessage(error);
   }
@@ -449,6 +470,7 @@ export async function postDueRecurring(
       toUserMessage(error);
     }
   }
+  if (posted.length > 0) pokeWidget();
   return posted;
 }
 

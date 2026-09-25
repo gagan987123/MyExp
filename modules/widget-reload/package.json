@@ -1,0 +1,7 @@
+{
+  "name": "widget-reload",
+  "version": "1.0.0",
+  "description": "Reload MyExp widget timelines from JavaScript",
+  "main": "index.ts",
+  "types": "index.d.ts"
+}

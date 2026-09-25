@@ -1,8 +1,8 @@
 import "@/global.css";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
-import { useCallback, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { AppState, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryIcon from "@/components/CategoryIcon";
 import { getMonthCategoryTotals, getMonthIncome, listExpenses, type Expense } from "@/lib/service";
@@ -93,6 +93,14 @@ export default function ExpensesScreen() {
       load();
     }, [load])
   );
+
+  // Same background-stale case as Home: refetch on wake.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") load();
+    });
+    return () => sub.remove();
+  }, [load]);
 
   return (
     <SafeAreaView
