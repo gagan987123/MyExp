@@ -8,7 +8,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryIcon from "@/components/CategoryIcon";
 import MonthInsights from "@/components/MonthInsights";
 import { useCategories, findCategory } from "@/hooks/useCategories";
-import { checkWidgetBridge } from "@/lib/service";
 import {
   getMonthCategoryTotals,
   getMonthIncome,
@@ -45,8 +44,6 @@ export default function HomeScreen() {
   const [monthIncome, setMonthIncome] = useState(0);
   const [recent, setRecent] = useState<Expense[]>([]);
   const [hasRecurring, setHasRecurring] = useState(true);
-  // TEMP diagnostic: proves whether the installed build contains the bridge.
-  const [bridgeStatus] = useState(() => checkWidgetBridge());
   const [breakdown, setBreakdown] = useState<
     { id: string; amount: number }[]
   >([]);
@@ -148,10 +145,6 @@ export default function HomeScreen() {
             <Text className="list-action-text">See all</Text>
           </Pressable>
         </View>
-
-        <Text style={{ fontSize: 11, color: "rgba(244,241,234,0.5)" }}>
-          {bridgeStatus}
-        </Text>
 
         {!hasRecurring ? (
           <Pressable

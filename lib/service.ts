@@ -203,16 +203,6 @@ function pokeWidget(): void {
   reloadWidgetTimelines().catch(() => {});
 }
 
-/** Diagnostic: does the native widget bridge exist in this build? */
-export function checkWidgetBridge(): string {
-  try {
-    requireNativeModule("WidgetReload");
-    return "bridge: native module present";
-  } catch (e) {
-    return `bridge missing: ${e instanceof Error ? e.message : String(e)}`;
-  }
-}
-
 // NOTE: every function takes `db` as the first arg and imports nothing
 // from React. A future Siri / Assistant bridge can call these directly.
 
