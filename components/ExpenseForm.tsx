@@ -155,7 +155,13 @@ export default function ExpenseForm({
             </Text>
             <TextInput
               className="auth-input"
-              style={{ flex: 1, fontSize: 24 }}
+              style={{
+                flex: 1,
+                fontSize: 26,
+                minHeight: 62,
+                textAlignVertical: "center",
+                color: "#F4F1EA",
+              }}
               value={amountText}
               onChangeText={setAmountText}
               placeholder="100"
