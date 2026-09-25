@@ -158,6 +158,7 @@ export default function ExpenseForm({
               style={{
                 flex: 1,
                 fontSize: 26,
+                lineHeight: 34,
                 minHeight: 62,
                 textAlignVertical: "center",
                 color: "#F4F1EA",
