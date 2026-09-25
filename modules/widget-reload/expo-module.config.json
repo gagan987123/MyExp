@@ -1,4 +1,8 @@
 {
   "name": "widget-reload",
-  "platforms": ["ios"]
+  "platforms": ["ios"],
+  "apple": {
+    "modules": ["WidgetReloadModule"],
+    "podspecPath": "widget-reload.podspec"
+  }
 }
