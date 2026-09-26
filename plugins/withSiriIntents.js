@@ -184,14 +184,19 @@ struct AddExpenseIntent: AppIntent {
       ],
     ]
     guard let payload = try? JSONSerialization.data(withJSONObject: body) else { return (nil, "badjson") }
+    let sessionConfig = URLSessionConfiguration.default
+    sessionConfig.waitsForConnectivity = true
+    sessionConfig.timeoutIntervalForRequest = 15
+    sessionConfig.timeoutIntervalForResource = 20
+    let session = URLSession(configuration: sessionConfig)
     var request = URLRequest(url: URL(string: "https://openrouter.ai/api/alpha/decisions")!)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.setValue("application/json", forHTTPHeaderField: "Accept")
     request.setValue("Bearer \\(key.trimmingCharacters(in: .whitespacesAndNewlines))", forHTTPHeaderField: "Authorization")
     request.httpBody = payload
-    request.timeoutInterval = 5
-    guard let (data, response) = try? await URLSession.shared.data(for: request) else { return (nil, "netfail") }
+    request.timeoutInterval = 15
+    guard let (data, response) = try? await session.data(for: request) else { return (nil, "netfail") }
     guard let http = response as? HTTPURLResponse else { return (nil, "noresponse") }
     guard http.statusCode == 200 else { return (nil, "http\\(http.statusCode)") }
     guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
