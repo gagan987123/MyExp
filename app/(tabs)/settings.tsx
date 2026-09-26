@@ -209,7 +209,7 @@ export default function SettingsScreen() {
               returnKeyType="done"
             />
           </View>
-          <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
             <Pressable
               className="list-action"
               onPress={onSaveKey}

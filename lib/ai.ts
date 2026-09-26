@@ -31,7 +31,7 @@ export async function checkApiKey(timeoutMs: number = 8000): Promise<ApiHealth> 
     };
     const left =
       json.data && typeof json.data.limit === "number"
-        ? ` · ₹${Math.max(json.data.limit - (json.data.usage ?? 0), 0).toFixed(1)} credits left`
+        ? ` · $${Math.max(json.data.limit - (json.data.usage ?? 0), 0).toFixed(2)} credits left`
         : "";
     return { ok: true, detail: `Connected${left}. Siri can use AI.` };
   } catch (e) {
