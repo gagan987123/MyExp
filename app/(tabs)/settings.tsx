@@ -85,7 +85,7 @@ export default function SettingsScreen() {
     try {
       await saveAiKey(db, keyInput);
       await refreshAi();
-      setAiStatus({ ok: true, detail: "Key saved on this phone only." });
+      setAiStatus({ ok: true, detail: "Key saved. Now tap Test connection." });
     } catch (e) {
       setAiStatus({
         ok: false,
