@@ -31,7 +31,7 @@ export default function SettingsScreen() {
   const [hasKey, setHasKey] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiStatus, setAiStatus] = useState<{
-    ok: boolean;
+    kind: "ok" | "info" | "error";
     detail: string;
   } | null>(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
@@ -73,7 +73,7 @@ export default function SettingsScreen() {
         if (saved != null) {
           await clearAiKey(db);
           await refreshAi();
-          setAiStatus({ ok: true, detail: "Key removed." });
+          setAiStatus({ kind: "info", detail: "Key removed." });
         }
       } catch {}
     }
@@ -85,10 +85,13 @@ export default function SettingsScreen() {
     try {
       await saveAiKey(db, keyInput);
       await refreshAi();
-      setAiStatus({ ok: true, detail: "Key saved. Now tap Test connection." });
+      setAiStatus({
+        kind: "info",
+        detail: "Key saved. Now tap Test connection to verify it works.",
+      });
     } catch (e) {
       setAiStatus({
-        ok: false,
+        kind: "error",
         detail: e instanceof Error ? e.message : "Couldn't save key.",
       });
     } finally {
@@ -100,9 +103,10 @@ export default function SettingsScreen() {
     setAiBusy(true);
     try {
       await clearAiKey(db);
+      setKeyInput("");
       await refreshAi();
       setAiStatus({
-        ok: true,
+        kind: "info",
         detail: "Key deleted. Siri uses word-list mode.",
       });
     } finally {
@@ -114,10 +118,15 @@ export default function SettingsScreen() {
     setAiBusy(true);
     setAiStatus(null);
     try {
-      setAiStatus(await checkApiKey());
+      const health = await checkApiKey();
+      setAiStatus(
+        health.ok
+          ? { kind: "ok", detail: health.detail }
+          : { kind: "error", detail: health.detail }
+      );
     } catch (e) {
       setAiStatus({
-        ok: false,
+        kind: "error",
         detail: e instanceof Error ? e.message : "Test failed.",
       });
     } finally {
@@ -275,20 +284,37 @@ export default function SettingsScreen() {
                 marginTop: 12,
                 borderRadius: 12,
                 padding: 12,
-                backgroundColor: aiStatus.ok
-                  ? "rgba(52,211,153,0.12)"
-                  : "rgba(248,113,113,0.12)",
+                backgroundColor:
+                  aiStatus.kind === "ok"
+                    ? "rgba(52,211,153,0.12)"
+                    : aiStatus.kind === "info"
+                      ? "rgba(96,165,250,0.12)"
+                      : "rgba(248,113,113,0.12)",
                 borderWidth: 1,
-                borderColor: aiStatus.ok ? "#34d399" : "#f87171",
+                borderColor:
+                  aiStatus.kind === "ok"
+                    ? "#34d399"
+                    : aiStatus.kind === "info"
+                      ? "#60a5fa"
+                      : "#f87171",
               }}
             >
               <Text
                 style={{
                   fontWeight: "700",
-                  color: aiStatus.ok ? "#34d399" : "#f87171",
+                  color:
+                    aiStatus.kind === "ok"
+                      ? "#34d399"
+                      : aiStatus.kind === "info"
+                        ? "#60a5fa"
+                        : "#f87171",
                 }}
               >
-                {aiStatus.ok ? "✓ AI connected" : "✕ AI not connected"}
+                {aiStatus.kind === "ok"
+                  ? "✓ AI connected"
+                  : aiStatus.kind === "info"
+                    ? "ⓘ Note"
+                    : "✕ AI not connected"}
               </Text>
               <Text
                 style={{
