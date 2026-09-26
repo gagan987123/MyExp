@@ -182,8 +182,8 @@ export default function SettingsScreen() {
               <Text className="sub-title">Smarter Siri (AI)</Text>
               <Text className="sub-meta">
                 Normally Siri files by fixed words. Turn this on and Siri
-                asks AI instead — it understands new words like “samosa”
-                with no list needed. Costs about a tenth of a paise per
+                asks AI instead — it understands new items with no list
+                needed. Costs about a tenth of a paise per
                 save. Off means everything works exactly as before.
               </Text>
             </View>
