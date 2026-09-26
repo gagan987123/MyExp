@@ -227,7 +227,7 @@ struct AddExpenseIntent: AppIntent {
       throw AddExpenseError.invalidAmount
     }
     var finalCategory = Self.resolveCategory(note: note, hint: category)
-    var aiTag = "rules:keywords"
+    var aiTag = ""
     let now = ISO8601DateFormatter().string(from: Date())
     let id = UUID().uuidString
     let cleanNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -246,10 +246,8 @@ struct AddExpenseIntent: AppIntent {
     if let custom = Self.matchCustom(customs, hint: category, note: note) {
       finalCategory = custom.0
       finalKind = custom.1 == "income" ? "income" : "expense"
-      aiTag = "custom"
     } else {
       let aiRes = await Self.tryAiCategory(note: note, customs: customs, db: db)
-      aiTag = "rules:" + aiRes.1
       if let aiPick = aiRes.0 {
         finalCategory = aiPick
         if aiPick == "salary" {
@@ -259,10 +257,9 @@ struct AddExpenseIntent: AppIntent {
             finalKind = kind == "income" ? "income" : "expense"
           }
         }
-        aiTag = "AI"
+        aiTag = " (AI)"
       }
     }
-    let stampedNote = cleanNote.isEmpty ? "[\\(aiTag)]" : "\\(cleanNote) [\\(aiTag)]"
     let create = """
       CREATE TABLE IF NOT EXISTS expenses (
         id TEXT PRIMARY KEY NOT NULL,
@@ -297,7 +294,11 @@ struct AddExpenseIntent: AppIntent {
     sqlite3_bind_text(stmt, 1, (id as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
     sqlite3_bind_double(stmt, 2, amount)
     sqlite3_bind_text(stmt, 3, (finalCategory as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
-    sqlite3_bind_text(stmt, 4, (stampedNote as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+    if cleanNote.isEmpty {
+      sqlite3_bind_null(stmt, 4)
+    } else {
+      sqlite3_bind_text(stmt, 4, (cleanNote as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+    }
     sqlite3_bind_text(stmt, 5, (now as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
     sqlite3_bind_text(stmt, 6, (now as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
     sqlite3_bind_text(stmt, 7, (finalKind as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
@@ -306,7 +307,7 @@ struct AddExpenseIntent: AppIntent {
     }
     WidgetCenter.shared.reloadTimelines(ofKind: "MyExpWidget")
     let kindWord = finalKind == "income" ? "earned" : "spent"
-    return .result(dialog: "Saved \\(Int(amount)) rupees \\(kindWord) for \\(cleanNote.isEmpty ? finalCategory : cleanNote) (\\(aiTag)).")
+    return .result(dialog: "Saved \\(Int(amount)) rupees \\(kindWord) for \\(cleanNote.isEmpty ? finalCategory : cleanNote)\\(aiTag).")
   }
 }
 
