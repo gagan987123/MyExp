@@ -53,7 +53,7 @@ export default function HomeScreen() {
   const load = useCallback(async () => {
     try {
       // Keep Siri's shared key copies in sync (self-heal old installs).
-      await syncSharedAiFiles().catch(() => {});
+      await syncSharedAiFiles(db).catch(() => {});
       // Post any due recurring salary/EMIs first (idempotent catch-up).
       await postDueRecurring(db).catch(() => []);
       const [total, income, all, templates, month, hist] = await Promise.all([

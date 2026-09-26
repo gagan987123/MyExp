@@ -3,7 +3,7 @@ import { File, Paths } from "expo-file-system";
 import { copyAsync } from "expo-file-system/legacy";
 
 export const DATABASE_NAME = "expenses.db";
-const DATABASE_VERSION = 4;
+const DATABASE_VERSION = 5;
 
 /** Must match the App Group in app.json + the Swift intent. */
 export const APP_GROUP_ID = "group.com.gagan987123.myexp";
@@ -98,6 +98,19 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
       );
     `);
     currentVersion = 4;
+  }
+
+  // v4 → v5: tiny key-value shelf inside the shared DB, replacing the
+  // ai-enabled.txt / ai-key.txt files (expo-file-system writes proved
+  // unreliable there). Both targets already do SQLite flawlessly.
+  if (currentVersion === 4) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS app_kv (
+        key TEXT PRIMARY KEY NOT NULL,
+        value TEXT NOT NULL
+      );
+    `);
+    currentVersion = 5;
   }
 
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

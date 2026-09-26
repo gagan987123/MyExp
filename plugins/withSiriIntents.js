@@ -160,16 +160,27 @@ struct AddExpenseIntent: AppIntent {
 
   /// AI categorization via Jev. Reads toggle + key from the shared folder,
   /// 5s timeout, min 70% confidence. Any failure → nil (keyword rules win).
-  static func tryAiCategory(note: String, customs: [(String, String, String)]) async -> (String?, String) {
-    guard let dir = FileManager.default.containerURL(
-      forSecurityApplicationGroupIdentifier: "group.com.gagan987123.myexp"
-    ) else { return (nil, "nocontainer") }
-    let flag = dir.appendingPathComponent("ai-enabled.txt")
-    let keyFile = dir.appendingPathComponent("ai-key.txt")
-    guard FileManager.default.fileExists(atPath: flag.path) else { return (nil, "off") }
-    guard let key = try? String(contentsOf: keyFile, encoding: .utf8),
+  static func kvValue(db: OpaquePointer?, key: String) -> String? {
+    var stmt: OpaquePointer?
+    guard sqlite3_prepare_v2(db, "SELECT value FROM app_kv WHERE key = ?;", -1, &stmt, nil) == SQLITE_OK else {
+      return nil
+    }
+    defer { sqlite3_finalize(stmt) }
+    sqlite3_bind_text(stmt, 1, (key as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+    guard sqlite3_step(stmt) == SQLITE_ROW,
+      let raw = sqlite3_column_text(stmt, 0)
+    else { return nil }
+    return String(cString: raw)
+  }
+
+  static func tryAiCategory(note: String, customs: [(String, String, String)], db: OpaquePointer?) async -> (String?, String) {
+    let key = kvValue(db: db, key: "ai-key") ?? ""
+    guard kvValue(db: db, key: "ai-enabled") == "1",
       !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    else { return (nil, "nokey") }
+    else {
+      let hasFlag = kvValue(db: db, key: "ai-enabled") != nil
+      return (nil, hasFlag ? "nokey" : "off")
+    }
     var criteria = defaultNames
     for (id, name, _) in customs { criteria[id] = name }
     let body: [String: Any] = [
@@ -237,7 +248,7 @@ struct AddExpenseIntent: AppIntent {
       finalKind = custom.1 == "income" ? "income" : "expense"
       aiTag = "custom"
     } else {
-      let aiRes = await Self.tryAiCategory(note: note, customs: customs)
+      let aiRes = await Self.tryAiCategory(note: note, customs: customs, db: db)
       aiTag = "rules:" + aiRes.1
       if let aiPick = aiRes.0 {
         finalCategory = aiPick
@@ -268,6 +279,10 @@ struct AddExpenseIntent: AppIntent {
         icon TEXT NOT NULL,
         kind TEXT NOT NULL DEFAULT 'expense',
         created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS app_kv (
+        key TEXT PRIMARY KEY NOT NULL,
+        value TEXT NOT NULL
       );
       """
     guard sqlite3_exec(db, create, nil, nil, nil) == SQLITE_OK else {

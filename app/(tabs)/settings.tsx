@@ -38,7 +38,7 @@ export default function SettingsScreen() {
     try {
       setAiOn(await isAiEnabled());
       setHasKey((await getAiKey()) != null);
-      const d = await diagnoseSharedAiFiles();
+      const d = await diagnoseSharedAiFiles(db);
       setSharedState(
         `shared: dir ${d.dir ? "yes" : "NO"} · flag ${d.flag ? "yes" : "NO"} · key ${d.key ? "yes" : "NO"}`
       );
@@ -56,7 +56,7 @@ export default function SettingsScreen() {
   async function onToggleAi(value: boolean) {
     setAiOn(value);
     try {
-      await setAiEnabled(value);
+      await setAiEnabled(db, value);
     } catch {
       setAiOn(!value);
     }
@@ -66,7 +66,7 @@ export default function SettingsScreen() {
     setAiBusy(true);
     setAiMessage(null);
     try {
-      await saveAiKey(keyInput);
+      await saveAiKey(db, keyInput);
       setKeyInput("");
       await refreshAi();
       setAiMessage("Key saved on this phone only.");
@@ -80,7 +80,7 @@ export default function SettingsScreen() {
   async function onClearKey() {
     setAiBusy(true);
     try {
-      await clearAiKey();
+      await clearAiKey(db);
       await refreshAi();
       setAiMessage("Key deleted. Siri uses word-list mode.");
     } finally {
