@@ -1,4 +1,5 @@
 import { useSQLiteContext } from "expo-sqlite";
+import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { useEffect, useState } from "react";
 import {
@@ -8,15 +9,14 @@ import {
   Text,
   View,
 } from "react-native";
-import { cacheDirectory, writeAsStringAsync } from "expo-file-system/legacy";
 import {
-  buildCsv,
-  fileNameForRange,
   filterByRange,
   rangeLabel,
   type DateRange,
 } from "@/lib/csv";
-import { listExpenses, type Expense } from "@/lib/service";
+import { buildReportHtml } from "@/lib/report";
+import { loadLogoDataUri } from "@/lib/logo";
+import { getCategories, listExpenses, type Expense } from "@/lib/service";
 
 function startOfMonth(y: number, m: number): Date {
   return new Date(y, m, 1);
@@ -124,37 +124,35 @@ export default function ExportSheet({
     setPickedMonths([]);
   }
 
-  async function onDownload() {
+  async function onDownloadPdf() {
     if (rows.length === 0 || busy) return;
     setBusy(true);
     setError(null);
     try {
-      if (!(await Sharing.isAvailableAsync())) {
-        throw new Error("Sharing isn't available on this device.");
-      }
-      const dir = cacheDirectory;
-      if (!dir) throw new Error("No temp folder available.");
-      const name = fileNameForRange(range);
-      const uri = `${dir}${name}`;
-      await writeAsStringAsync(uri, buildCsv(all, range));
+      const cats = await getCategories(db);
+      const names = new Map(cats.map((c) => [c.id, c.name] as const));
+      const logo = await loadLogoDataUri();
+      const html = buildReportHtml(all, range, logo, (id) =>
+        names.get(id) ?? id
+      );
+      const { uri } = await Print.printToFileAsync({ html });
       await Sharing.shareAsync(uri, {
-        dialogTitle: "MyExp expenses",
-        mimeType: "text/csv",
+        dialogTitle: "MyExp report",
+        mimeType: "application/pdf",
       });
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't share the file.");
+      setError(e instanceof Error ? e.message : "Couldn't build the PDF.");
     } finally {
       setBusy(false);
     }
   }
-
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <View className="modal-overlay">
         <View className="modal-container">
           <View className="modal-header">
-            <Text className="modal-title">Export CSV</Text>
+            <Text className="modal-title">Export</Text>
             <Pressable className="modal-close" onPress={onClose}>
               <Text className="modal-close-text">✕</Text>
             </Pressable>
@@ -270,12 +268,12 @@ export default function ExportSheet({
 
               <Pressable
                 className="auth-button"
-                onPress={onDownload}
+                onPress={onDownloadPdf}
                 disabled={busy || rows.length === 0}
                 style={rows.length === 0 ? { opacity: 0.45 } : undefined}
               >
                 <Text className="auth-button-text">
-                  {busy ? "Preparing…" : `Download CSV (${rows.length})`}
+                  {busy ? "Preparing…" : `Download PDF (${rows.length})`}
                 </Text>
               </Pressable>
             </View>
