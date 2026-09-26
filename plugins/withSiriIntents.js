@@ -160,16 +160,16 @@ struct AddExpenseIntent: AppIntent {
 
   /// AI categorization via Jev. Reads toggle + key from the shared folder,
   /// 5s timeout, min 70% confidence. Any failure → nil (keyword rules win).
-  static func tryAiCategory(note: String, customs: [(String, String, String)]) async -> String? {
+  static func tryAiCategory(note: String, customs: [(String, String, String)]) async -> (String?, String) {
     guard let dir = FileManager.default.containerURL(
       forSecurityApplicationGroupIdentifier: "group.com.gagan987123.myexp"
-    ) else { return nil }
+    ) else { return (nil, "nocontainer") }
     let flag = dir.appendingPathComponent("ai-enabled.txt")
     let keyFile = dir.appendingPathComponent("ai-key.txt")
-    guard FileManager.default.fileExists(atPath: flag.path) else { return nil }
+    guard FileManager.default.fileExists(atPath: flag.path) else { return (nil, "off") }
     guard let key = try? String(contentsOf: keyFile, encoding: .utf8),
       !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    else { return nil }
+    else { return (nil, "nokey") }
     var criteria = defaultNames
     for (id, name, _) in customs { criteria[id] = name }
     let body: [String: Any] = [
@@ -183,7 +183,7 @@ struct AddExpenseIntent: AppIntent {
         ]
       ],
     ]
-    guard let payload = try? JSONSerialization.data(withJSONObject: body) else { return nil }
+    guard let payload = try? JSONSerialization.data(withJSONObject: body) else { return (nil, "badjson") }
     var request = URLRequest(url: URL(string: "https://openrouter.ai/api/alpha/decisions")!)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -191,16 +191,18 @@ struct AddExpenseIntent: AppIntent {
     request.setValue("Bearer \\(key.trimmingCharacters(in: .whitespacesAndNewlines))", forHTTPHeaderField: "Authorization")
     request.httpBody = payload
     request.timeoutInterval = 5
-    guard let (data, response) = try? await URLSession.shared.data(for: request),
-      let http = response as? HTTPURLResponse, http.statusCode == 200,
-      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+    guard let (data, response) = try? await URLSession.shared.data(for: request) else { return (nil, "netfail") }
+    guard let http = response as? HTTPURLResponse else { return (nil, "noresponse") }
+    guard http.statusCode == 200 else { return (nil, "http\\(http.statusCode)") }
+    guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
       let answers = json["answers"] as? [String: Any],
       let pick = answers["category"] as? [String: Any],
       let choice = pick["choice"] as? String,
       criteria[choice] != nil
-    else { return nil }
+    else { return (nil, "badanswer") }
     let confidence = (pick["confidence"] as? Double) ?? 0
-    return confidence >= 0.7 ? choice : nil
+    if confidence < 0.7 { return (nil, "lowconf\\(Int(confidence * 100))") }
+    return (choice, "AI")
   }
 
   @MainActor
@@ -209,7 +211,7 @@ struct AddExpenseIntent: AppIntent {
       throw AddExpenseError.invalidAmount
     }
     var finalCategory = Self.resolveCategory(note: note, hint: category)
-    var usedAi = false
+    var aiTag = "rules:keywords"
     let now = ISO8601DateFormatter().string(from: Date())
     let id = UUID().uuidString
     let cleanNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -226,16 +228,20 @@ struct AddExpenseIntent: AppIntent {
     if let custom = Self.matchCustom(customs, hint: category, note: note) {
       finalCategory = custom.0
       finalKind = custom.1 == "income" ? "income" : "expense"
-    } else if let aiPick = await Self.tryAiCategory(note: note, customs: customs) {
-      finalCategory = aiPick
-      if aiPick == "salary" {
-        finalKind = "income"
-      } else {
-        for (id, _, kind) in customs where id == aiPick {
-          finalKind = kind == "income" ? "income" : "expense"
+    } else {
+      let aiRes = await Self.tryAiCategory(note: note, customs: customs)
+      aiTag = "rules:" + aiRes.1
+      if let aiPick = aiRes.0 {
+        finalCategory = aiPick
+        if aiPick == "salary" {
+          finalKind = "income"
+        } else {
+          for (id, _, kind) in customs where id == aiPick {
+            finalKind = kind == "income" ? "income" : "expense"
+          }
         }
+        aiTag = "AI"
       }
-      usedAi = true
     }
     let create = """
       CREATE TABLE IF NOT EXISTS expenses (
@@ -280,8 +286,7 @@ struct AddExpenseIntent: AppIntent {
     }
     WidgetCenter.shared.reloadTimelines(ofKind: "MyExpWidget")
     let kindWord = finalKind == "income" ? "earned" : "spent"
-    let aiTag = usedAi ? " (AI)" : ""
-    return .result(dialog: "Saved \\(Int(amount)) rupees \\(kindWord) for \\(cleanNote.isEmpty ? finalCategory : cleanNote)\\(aiTag).")
+    return .result(dialog: "Saved \\(Int(amount)) rupees \\(kindWord) for \\(cleanNote.isEmpty ? finalCategory : cleanNote) (\\(aiTag)).")
   }
 }
 
