@@ -1,4 +1,5 @@
 import "@/global.css";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useCallback, useState } from "react";
@@ -26,6 +27,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const [aiOn, setAiOn] = useState(false);
   const [keyInput, setKeyInput] = useState("");
+  const [showKey, setShowKey] = useState(false);
   const [hasKey, setHasKey] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiStatus, setAiStatus] = useState<{
@@ -38,7 +40,10 @@ export default function SettingsScreen() {
   async function refreshAi() {
     try {
       setAiOn(await isAiEnabled());
-      setHasKey((await getAiKey()) != null);
+      const saved = await getAiKey();
+      setHasKey(saved != null);
+      // Preload the saved key masked, so the eye can reveal it.
+      if (saved != null) setKeyInput(saved);
     } catch {
       // unavailable (Expo Go without SecureStore): leave defaults
     }
@@ -59,12 +64,26 @@ export default function SettingsScreen() {
     }
   }
 
+  async function onKeyChange(text: string) {
+    setKeyInput(text);
+    // Empty field = remove the saved key.
+    if (text === "" ) {
+      try {
+        const saved = await getAiKey();
+        if (saved != null) {
+          await clearAiKey(db);
+          await refreshAi();
+          setAiStatus({ ok: true, detail: "Key removed." });
+        }
+      } catch {}
+    }
+  }
+
   async function onSaveKey() {
     setAiBusy(true);
     setAiStatus(null);
     try {
       await saveAiKey(db, keyInput);
-      setKeyInput("");
       await refreshAi();
       setAiStatus({ ok: true, detail: "Key saved on this phone only." });
     } catch (e) {
@@ -198,16 +217,30 @@ export default function SettingsScreen() {
             <Text className="auth-label">
               Your OpenRouter key {hasKey ? "(saved ••••)" : "(not set)"}
             </Text>
-            <TextInput
-              className="auth-input"
-              value={keyInput}
-              onChangeText={setKeyInput}
-              placeholder="sk-or-…"
-              placeholderTextColor="rgba(244,241,234,0.35)"
-              secureTextEntry
-              autoCapitalize="none"
-              returnKeyType="done"
-            />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <TextInput
+                className="auth-input"
+                style={{ flex: 1 }}
+                value={keyInput}
+                onChangeText={onKeyChange}
+                placeholder="sk-or-…"
+                placeholderTextColor="rgba(244,241,234,0.35)"
+                secureTextEntry={!showKey}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="done"
+              />
+              <Pressable
+                className="list-action"
+                onPress={() => setShowKey((v) => !v)}
+              >
+                <MaterialCommunityIcons
+                  name={showKey ? "eye-off" : "eye"}
+                  size={20}
+                  color="#F4F1EA"
+                />
+              </Pressable>
+            </View>
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
             <Pressable
