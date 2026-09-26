@@ -55,7 +55,8 @@
       "expo-web-browser",
       "expo-sqlite",
       "./plugins/withSiriIntents",
-      "./plugins/withWidget"
+      "./plugins/withWidget",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
