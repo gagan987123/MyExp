@@ -7,6 +7,7 @@ import { AppState, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryIcon from "@/components/CategoryIcon";
 import MonthInsights from "@/components/MonthInsights";
+import { syncSharedAiFiles } from "@/lib/aiKey";
 import { useCategories, findCategory } from "@/hooks/useCategories";
 import {
   getMonthCategoryTotals,
@@ -51,6 +52,8 @@ export default function HomeScreen() {
 
   const load = useCallback(async () => {
     try {
+      // Keep Siri's shared key copies in sync (self-heal old installs).
+      await syncSharedAiFiles().catch(() => {});
       // Post any due recurring salary/EMIs first (idempotent catch-up).
       await postDueRecurring(db).catch(() => []);
       const [total, income, all, templates, month, hist] = await Promise.all([

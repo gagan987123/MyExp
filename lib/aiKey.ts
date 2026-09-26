@@ -97,3 +97,32 @@ export async function clearAiKey(): Promise<void> {
     } catch {}
   }
 }
+
+/**
+ * Self-heal: if the toggle/key exist in the keychain but the shared
+ * copies are missing (old install, wiped folder), rewrite them so Siri
+ * never silently degrades to word-list mode. Runs on every app start.
+ */
+export async function syncSharedAiFiles(): Promise<void> {
+  try {
+    const [on, key] = await Promise.all([
+      SecureStore.getItemAsync(ENABLED_ITEM),
+      SecureStore.getItemAsync(KEY_ITEM),
+    ]);
+    if (on !== "1" || !key) return;
+    const flagUri = sharedFlagUri();
+    if (flagUri) {
+      try {
+        await writeAsStringAsync(flagUri, "1");
+      } catch {}
+    }
+    const keyUri = sharedKeyUri();
+    if (keyUri) {
+      try {
+        await writeAsStringAsync(keyUri, key);
+      } catch {}
+    }
+  } catch {
+    // best effort only
+  }
+}
