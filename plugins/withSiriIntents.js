@@ -230,9 +230,13 @@ struct AddExpenseIntent: AppIntent {
     defer { sqlite3_close(db) }
     sqlite3_busy_timeout(db, 5000)
     let customs = Self.fetchCustoms(db: db)
+    // TEMP DIAGNOSTIC: stamp the decision path into the note so it is
+    // visible in the app. Remove after the Siri-AI cause is confirmed.
+    var aiTag = "rules:keywords"
     if let custom = Self.matchCustom(customs, hint: category, note: note) {
       finalCategory = custom.0
       finalKind = custom.1 == "income" ? "income" : "expense"
+      aiTag = "custom"
     } else {
       let aiRes = await Self.tryAiCategory(note: note, customs: customs)
       aiTag = "rules:" + aiRes.1
@@ -248,6 +252,7 @@ struct AddExpenseIntent: AppIntent {
         aiTag = "AI"
       }
     }
+    let stampedNote = cleanNote.isEmpty ? "[\\(aiTag)]" : "\\(cleanNote) [\\(aiTag)]"
     let create = """
       CREATE TABLE IF NOT EXISTS expenses (
         id TEXT PRIMARY KEY NOT NULL,
@@ -278,11 +283,7 @@ struct AddExpenseIntent: AppIntent {
     sqlite3_bind_text(stmt, 1, (id as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
     sqlite3_bind_double(stmt, 2, amount)
     sqlite3_bind_text(stmt, 3, (finalCategory as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
-    if cleanNote.isEmpty {
-      sqlite3_bind_null(stmt, 4)
-    } else {
-      sqlite3_bind_text(stmt, 4, (cleanNote as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
-    }
+    sqlite3_bind_text(stmt, 4, (stampedNote as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
     sqlite3_bind_text(stmt, 5, (now as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
     sqlite3_bind_text(stmt, 6, (now as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
     sqlite3_bind_text(stmt, 7, (finalKind as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
