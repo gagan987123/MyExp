@@ -2,7 +2,7 @@ import "@/global.css";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { AppState, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryIcon from "@/components/CategoryIcon";
@@ -82,6 +82,7 @@ export default function HomeScreen() {
       load();
     }, [load])
   );
+
 
   // Siri can save while we're suspended; foregrounding doesn't refire
   // navigation focus, so refetch explicitly on wake.

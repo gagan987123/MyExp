@@ -4,6 +4,46 @@ const ENDPOINT = "https://openrouter.ai/api/alpha/decisions";
 const MODEL = "typesafe/jev-1.13";
 const MIN_CONFIDENCE = 0.7;
 
+export type ApiHealth =
+  | { ok: true; detail: string }
+  | { ok: false; detail: string };
+
+/**
+ * Cheap key check: asks OpenRouter who this key belongs to.
+ * Costs nothing, categorizes nothing.
+ */
+export async function checkApiKey(timeoutMs: number = 8000): Promise<ApiHealth> {
+  const key = await getAiKey();
+  if (!key) return { ok: false, detail: "No key saved yet." };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/key", {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: controller.signal,
+    });
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, detail: "Key rejected — check for typos or a revoked key." };
+    }
+    if (!res.ok) return { ok: false, detail: `Service error (${res.status}). Try again.` };
+    const json = (await res.json()) as {
+      data?: { label?: string; usage?: number; limit?: number | null };
+    };
+    const left =
+      json.data && typeof json.data.limit === "number"
+        ? ` · ₹${Math.max(json.data.limit - (json.data.usage ?? 0), 0).toFixed(1)} credits left`
+        : "";
+    return { ok: true, detail: `Connected${left}. Siri can use AI.` };
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      return { ok: false, detail: "Timed out — check your internet." };
+    }
+    return { ok: false, detail: "No internet — AI needs a connection." };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export type AiCategoryResult = {
   category: string;
   confidence: number;

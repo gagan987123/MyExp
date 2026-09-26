@@ -18,8 +18,8 @@ import {
   saveAiKey,
   setAiEnabled,
 } from "@/lib/aiKey";
-import { suggestCategory } from "@/lib/ai";
-import { clearAllExpenses, getCategories } from "@/lib/service";
+import { checkApiKey } from "@/lib/ai";
+import { clearAllExpenses } from "@/lib/service";
 
 export default function SettingsScreen() {
   const db = useSQLiteContext();
@@ -28,7 +28,10 @@ export default function SettingsScreen() {
   const [keyInput, setKeyInput] = useState("");
   const [hasKey, setHasKey] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
-  const [aiMessage, setAiMessage] = useState<string | null>(null);
+  const [aiStatus, setAiStatus] = useState<{
+    ok: boolean;
+    detail: string;
+  } | null>(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [cleared, setCleared] = useState(false);
 
@@ -58,14 +61,17 @@ export default function SettingsScreen() {
 
   async function onSaveKey() {
     setAiBusy(true);
-    setAiMessage(null);
+    setAiStatus(null);
     try {
       await saveAiKey(db, keyInput);
       setKeyInput("");
       await refreshAi();
-      setAiMessage("Key saved on this phone only.");
+      setAiStatus({ ok: true, detail: "Key saved on this phone only." });
     } catch (e) {
-      setAiMessage(e instanceof Error ? e.message : "Couldn't save key.");
+      setAiStatus({
+        ok: false,
+        detail: e instanceof Error ? e.message : "Couldn't save key.",
+      });
     } finally {
       setAiBusy(false);
     }
@@ -76,7 +82,10 @@ export default function SettingsScreen() {
     try {
       await clearAiKey(db);
       await refreshAi();
-      setAiMessage("Key deleted. Siri uses word-list mode.");
+      setAiStatus({
+        ok: true,
+        detail: "Key deleted. Siri uses word-list mode.",
+      });
     } finally {
       setAiBusy(false);
     }
@@ -84,16 +93,14 @@ export default function SettingsScreen() {
 
   async function onTestAi() {
     setAiBusy(true);
-    setAiMessage(null);
+    setAiStatus(null);
     try {
-      const cats = await getCategories(db);
-      const r = await suggestCategory("cutting chai", cats);
-      const name = cats.find((c) => c.id === r.category)?.name ?? r.category;
-      setAiMessage(
-        `Test OK: "chai" → ${name} (${Math.round(r.confidence * 100)}%).`
-      );
+      setAiStatus(await checkApiKey());
     } catch (e) {
-      setAiMessage(e instanceof Error ? e.message : "Test failed.");
+      setAiStatus({
+        ok: false,
+        detail: e instanceof Error ? e.message : "Test failed.",
+      });
     } finally {
       setAiBusy(false);
     }
@@ -153,12 +160,31 @@ export default function SettingsScreen() {
           </View>
         </Pressable>
 
+        <Pressable
+          className="sub-card"
+          style={{ marginTop: 16 }}
+          onPress={() => router.push("/recurring")}
+        >
+          <View className="sub-head">
+            <View className="sub-copy">
+              <Text className="sub-title">Recurring</Text>
+              <Text className="sub-meta">
+                Salary and EMIs that post themselves monthly.
+              </Text>
+            </View>
+            <Text className="auth-link">›</Text>
+          </View>
+        </Pressable>
+
         <View className="sub-card" style={{ marginTop: 16 }}>
           <View className="sub-head">
             <View className="sub-copy">
-              <Text className="sub-title">AI for Siri</Text>
+              <Text className="sub-title">Smarter Siri (AI)</Text>
               <Text className="sub-meta">
-                Siri asks Jev to categorize. Off = word-list mode.
+                Normally Siri files by fixed words. Turn this on and Siri
+                asks AI instead — it understands new words like “samosa”
+                with no list needed. Costs about a tenth of a paise per
+                save. Off means everything works exactly as before.
               </Text>
             </View>
             <Switch
@@ -170,7 +196,7 @@ export default function SettingsScreen() {
 
           <View className="auth-field" style={{ marginTop: 12 }}>
             <Text className="auth-label">
-              OpenRouter key {hasKey ? "(saved ••••)" : "(not set)"}
+              Your OpenRouter key {hasKey ? "(saved ••••)" : "(not set)"}
             </Text>
             <TextInput
               className="auth-input"
@@ -206,36 +232,48 @@ export default function SettingsScreen() {
               disabled={aiBusy}
             >
               <Text className="list-action-text">
-                {aiBusy ? "…" : "Test on “chai”"}
+                {aiBusy ? "…" : "Test connection"}
               </Text>
             </Pressable>
           </View>
-          {aiMessage ? (
-            <Text className="auth-helper" style={{ marginTop: 8 }}>
-              {aiMessage}
-            </Text>
-          ) : null}
-          <Text className="sub-meta" style={{ marginTop: 8 }}>
-            Key stays in this phone's keychain (+ a Siri-only copy). ~$0.001
-            per save. No key, offline, or timeout → word-list mode.
-          </Text>
-        </View>
-
-        <Pressable
-          className="sub-card"
-          style={{ marginTop: 16 }}
-          onPress={() => router.push("/recurring")}
-        >
-          <View className="sub-head">
-            <View className="sub-copy">
-              <Text className="sub-title">Recurring</Text>
-              <Text className="sub-meta">
-                Salary and EMIs that post themselves monthly.
+          {aiStatus ? (
+            <View
+              style={{
+                marginTop: 12,
+                borderRadius: 12,
+                padding: 12,
+                backgroundColor: aiStatus.ok
+                  ? "rgba(52,211,153,0.12)"
+                  : "rgba(248,113,113,0.12)",
+                borderWidth: 1,
+                borderColor: aiStatus.ok ? "#34d399" : "#f87171",
+              }}
+            >
+              <Text
+                style={{
+                  fontWeight: "700",
+                  color: aiStatus.ok ? "#34d399" : "#f87171",
+                }}
+              >
+                {aiStatus.ok ? "✓ AI connected" : "✕ AI not connected"}
+              </Text>
+              <Text
+                style={{
+                  marginTop: 4,
+                  fontSize: 13,
+                  color: "rgba(244,241,234,0.75)",
+                }}
+              >
+                {aiStatus.detail}
               </Text>
             </View>
-            <Text className="auth-link">›</Text>
-          </View>
-        </Pressable>
+          ) : null}
+          <Text className="sub-meta" style={{ marginTop: 8 }}>
+            The key stays in this phone's keychain, with a Siri-only copy
+            beside your data. No key, no internet, or timeout → Siri quietly
+            uses word-list mode.
+          </Text>
+        </View>
 
         <View className="sub-card" style={{ marginTop: 16 }}>
           <Text className="sub-title">Danger zone</Text>
