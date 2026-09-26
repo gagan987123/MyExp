@@ -232,7 +232,6 @@ struct AddExpenseIntent: AppIntent {
     let customs = Self.fetchCustoms(db: db)
     // TEMP DIAGNOSTIC: stamp the decision path into the note so it is
     // visible in the app. Remove after the Siri-AI cause is confirmed.
-    var aiTag = "rules:keywords"
     if let custom = Self.matchCustom(customs, hint: category, note: note) {
       finalCategory = custom.0
       finalKind = custom.1 == "income" ? "income" : "expense"
