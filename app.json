@@ -56,7 +56,8 @@
       "expo-sqlite",
       "./plugins/withSiriIntents",
       "./plugins/withWidget",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

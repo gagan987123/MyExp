@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AppState, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryIcon from "@/components/CategoryIcon";
+import ExportSheet from "@/components/ExportSheet";
 import MonthInsights from "@/components/MonthInsights";
 import { syncSharedAiFiles } from "@/lib/aiKey";
 import { useCategories, findCategory } from "@/hooks/useCategories";
@@ -45,6 +46,7 @@ export default function HomeScreen() {
   const [monthIncome, setMonthIncome] = useState(0);
   const [recent, setRecent] = useState<Expense[]>([]);
   const [hasRecurring, setHasRecurring] = useState(true);
+  const [showExport, setShowExport] = useState(false);
   const [breakdown, setBreakdown] = useState<
     { id: string; amount: number }[]
   >([]);
@@ -112,14 +114,32 @@ export default function HomeScreen() {
             </View>
             <Text className="home-user-name">MyExp</Text>
           </View>
-          <Pressable
-            className="home-add-icon"
-            style={{ alignItems: "center", justifyContent: "center" }}
-            onPress={() => router.push("/(tabs)/add-expense")}
-          >
-            <MaterialCommunityIcons name="plus" size={30} color="#F4F1EA" />
-          </Pressable>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Pressable
+              className="home-add-icon"
+              style={{ alignItems: "center", justifyContent: "center" }}
+              onPress={() => setShowExport(true)}
+            >
+              <MaterialCommunityIcons
+                name="download"
+                size={26}
+                color="#F4F1EA"
+              />
+            </Pressable>
+            <Pressable
+              className="home-add-icon"
+              style={{ alignItems: "center", justifyContent: "center" }}
+              onPress={() => router.push("/(tabs)/add-expense")}
+            >
+              <MaterialCommunityIcons name="plus" size={30} color="#F4F1EA" />
+            </Pressable>
+          </View>
         </View>
+
+        <ExportSheet
+          visible={showExport}
+          onClose={() => setShowExport(false)}
+        />
 
         <View className="home-balance-card" style={{ minHeight: 168 }}>
           <Text className="home-balance-label">Spent in {monthName}</Text>
