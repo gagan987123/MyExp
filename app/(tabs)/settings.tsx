@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   clearAiKey,
+  diagnoseSharedAiFiles,
   getAiKey,
   isAiEnabled,
   saveAiKey,
@@ -29,6 +30,7 @@ export default function SettingsScreen() {
   const [hasKey, setHasKey] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiMessage, setAiMessage] = useState<string | null>(null);
+  const [sharedState, setSharedState] = useState("shared: ?");
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [cleared, setCleared] = useState(false);
 
@@ -36,6 +38,10 @@ export default function SettingsScreen() {
     try {
       setAiOn(await isAiEnabled());
       setHasKey((await getAiKey()) != null);
+      const d = await diagnoseSharedAiFiles();
+      setSharedState(
+        `shared: dir ${d.dir ? "yes" : "NO"} · flag ${d.flag ? "yes" : "NO"} · key ${d.key ? "yes" : "NO"}`
+      );
     } catch {
       // unavailable (Expo Go without SecureStore): leave defaults
     }
@@ -218,6 +224,9 @@ export default function SettingsScreen() {
           <Text className="sub-meta" style={{ marginTop: 8 }}>
             Key stays in this phone's keychain (+ a Siri-only copy). ~$0.001
             per save. No key, offline, or timeout → word-list mode.
+          </Text>
+          <Text className="sub-meta" style={{ marginTop: 4 }}>
+            {sharedState}
           </Text>
         </View>
 

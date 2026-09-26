@@ -99,10 +99,28 @@ export async function clearAiKey(): Promise<void> {
 }
 
 /**
- * Self-heal: if the toggle/key exist in the keychain but the shared
- * copies are missing (old install, wiped folder), rewrite them so Siri
- * never silently degrades to word-list mode. Runs on every app start.
+ * Diagnostic: what does the Siri side actually see? Shows whether the
+ * shared folder resolves and whether the flag/key copies exist there.
  */
+export async function diagnoseSharedAiFiles(): Promise<{
+  dir: boolean;
+  flag: boolean;
+  key: boolean;
+}> {
+  const out = { dir: false, flag: false, key: false };
+  try {
+    const shared = Paths.appleSharedContainers?.[APP_GROUP_ID];
+    if (!shared) return out;
+    out.dir = true;
+    try {
+      out.flag = new File(shared, SHARED_FLAG).exists;
+    } catch {}
+    try {
+      out.key = new File(shared, SHARED_FILE).exists;
+    } catch {}
+  } catch {}
+  return out;
+}
 export async function syncSharedAiFiles(): Promise<void> {
   try {
     const [on, key] = await Promise.all([
