@@ -33,7 +33,7 @@ import WidgetKit
 /// App Group SQLite file. The app stays closed; no JavaScript runs.
 /// Same table and rules as the React Native side (single source of truth).
 struct AddExpenseIntent: AppIntent {
-  static var title: LocalizedStringResource = "Log expense in MyExp"
+  static var title: LocalizedStringResource = "Add Expense"
   static var description = IntentDescription(
     "Adds an expense to MyExp.",
     categoryName: "Finance"
@@ -54,7 +54,7 @@ struct AddExpenseIntent: AppIntent {
   /// (rupees, rs, inr, ₹) are dropped from the note.
   /// Returns nil when no number is present.
   static func parseEntry(_ raw: String) -> (Double, String)? {
-    guard let regex = try? NSRegularExpression(pattern: "\\d[\\d,]*\\.?\\d*") else {
+    guard let regex = try? NSRegularExpression(pattern: "\\\\d[\\\\d,]*\\\\.?\\\\d*") else {
       return nil
     }
     let nsRange = NSRange(raw.startIndex..., in: raw)
