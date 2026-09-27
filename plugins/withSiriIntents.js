@@ -39,21 +39,41 @@ struct AddExpenseIntent: AppIntent {
     categoryName: "Finance"
   )
 
-  @Parameter(title: "Amount", description: "How much was spent, in rupees.")
-  var amount: Double
-
-  @Parameter(title: "Note", description: "What it was for, e.g. chai.")
-  var note: String
-
-  @Parameter(title: "Category", description: "Optional. Food, Petrol, Transport, Shopping, Bills, Entertainment, Health, Travel, Salary or Other. Guessed from the note when skipped.")
-  var category: String?
+  @Parameter(title: "Expense", description: "The amount and what it was for, e.g. 200 petrol.")
+  var entry: String
 
   static var parameterSummary: some ParameterSummary {
     Summary("Log an expense") {
-      \\.$amount
-      \\.$note
-      \\.$category
+      \\.$entry
     }
+  }
+
+  /// Splits "200 petrol" / "petrol 200" / "50,000 salary" / "2,00,000 flat"
+  /// into (amount, note). Digit groups keep their commas until parsed, so
+  /// Indian grouping ("50,000", "2,00,000") survives. Currency words
+  /// (rupees, rs, inr, ₹) are dropped from the note.
+  /// Returns nil when no number is present.
+  static func parseEntry(_ raw: String) -> (Double, String)? {
+    guard let regex = try? NSRegularExpression(pattern: "\\d[\\d,]*\\.?\\d*") else {
+      return nil
+    }
+    let nsRange = NSRange(raw.startIndex..., in: raw)
+    guard let match = regex.firstMatch(in: raw, range: nsRange),
+      let range = Range(match.range, in: raw)
+    else { return nil }
+    let digits = String(raw[range]).replacingOccurrences(of: ",", with: "")
+    guard let amount = Double(digits), amount.isFinite, amount > 0 else {
+      return nil
+    }
+    var note = String(raw.replacingCharacters(in: range, with: " "))
+    let noise: Set<String> = ["rupees", "rupee", "rs", "rs.", "inr", "₹"]
+    note = note
+      .split(separator: " ")
+      .map(String.init)
+      .filter { !noise.contains($0.lowercased().trimmingCharacters(in: .punctuationCharacters)) }
+      .joined(separator: " ")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    return (amount, note)
   }
 
   // Deterministic keyword rules (no AI) — mirrors matchCategory()
@@ -223,10 +243,10 @@ struct AddExpenseIntent: AppIntent {
 
   @MainActor
   func perform() async throws -> some IntentResult {
-    guard amount.isFinite && amount > 0 else {
+    guard let (amount, note) = Self.parseEntry(entry) else {
       throw AddExpenseError.invalidAmount
     }
-    var finalCategory = Self.resolveCategory(note: note, hint: category)
+    var finalCategory = Self.resolveCategory(note: note, hint: nil)
     var aiTag = ""
     let now = ISO8601DateFormatter().string(from: Date())
     let id = UUID().uuidString
@@ -243,7 +263,7 @@ struct AddExpenseIntent: AppIntent {
     let customs = Self.fetchCustoms(db: db)
     // TEMP DIAGNOSTIC: stamp the decision path into the note so it is
     // visible in the app. Remove after the Siri-AI cause is confirmed.
-    if let custom = Self.matchCustom(customs, hint: category, note: note) {
+    if let custom = Self.matchCustom(customs, hint: nil, note: note) {
       finalCategory = custom.0
       finalKind = custom.1 == "income" ? "income" : "expense"
     } else {
@@ -322,7 +342,7 @@ enum AddExpenseError: Error, CustomLocalizedStringResourceConvertible {
     case .noSharedContainer: return "MyExp shared storage isn't available."
     case .cannotOpenDatabase: return "Couldn't open the expense database."
     case .writeFailed: return "Couldn't save the expense."
-    case .invalidAmount: return "The amount must be above zero."
+    case .invalidAmount: return "Say it with an amount, like: 200 petrol."
     }
   }
 }
