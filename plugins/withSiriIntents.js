@@ -359,7 +359,7 @@ struct MyExpShortcuts: AppShortcutsProvider {
         "Log expense in \\(.applicationName)",
         "Add expense in \\(.applicationName)",
       ],
-      shortTitle: "Log expense",
+      shortTitle: "Add Expense",
       systemImageName: "indianrupeesign.circle"
     )
   }
