@@ -32,6 +32,24 @@ export async function resolveDatabaseDirectory(): Promise<string | undefined> {
 }
 
 export async function migrateDbIfNeeded(db: SQLiteDatabase) {
+  // The WidgetKit extension reads this same file with a plain
+  // SQLITE_OPEN_READONLY sqlite3 connection from another process.
+  // WAL mode + a readonly cross-process reader = stale widget (writer
+  // holds frames in -wal, reader sees the last checkpoint, or hits
+  // SQLITE_BUSY/CANTOPEN when recovery is needed). This DB is tiny,
+  // so DELETE mode costs nothing and keeps app + widget + Siri intent
+  // on the same journaling. Runs on every launch — before the
+  // version early-return — so existing WAL databases get converted.
+  try {
+    await db.execAsync(`PRAGMA wal_checkpoint(TRUNCATE);`);
+  } catch {
+    // Fresh/empty DB: nothing to checkpoint yet.
+  }
+  try {
+    await db.execAsync(`PRAGMA journal_mode = DELETE;`);
+  } catch {
+    // Non-fatal: widget may lag until the next checkpoint.
+  }
   const row = await db.getFirstAsync<{ user_version: number }>(
     "PRAGMA user_version"
   );
@@ -40,7 +58,6 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
 
   if (currentVersion === 0) {
     await db.execAsync(`
-      PRAGMA journal_mode = 'wal';
       CREATE TABLE IF NOT EXISTS expenses (
         id TEXT PRIMARY KEY NOT NULL,
         amount REAL NOT NULL,

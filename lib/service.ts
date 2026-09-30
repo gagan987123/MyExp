@@ -198,9 +198,24 @@ function toUserMessage(error: unknown): never {
   throw new DatabaseError("Something went wrong saving your expense.");
 }
 
-/** Nudge the home-screen widget after data changes. Fire-and-forget. */
-function pokeWidget(): void {
-  reloadWidgetTimelines().catch(() => {});
+/** Flush the shared DB so the readonly widget reader sees this write,
+ * then nudge WidgetKit. Fire-and-forget; warns in dev instead of
+ * swallowing failures silently. */
+function pokeWidget(db: SQLiteDatabase): void {
+  (async () => {
+    try {
+      await db.execAsync("PRAGMA wal_checkpoint(TRUNCATE);");
+    } catch {
+      // DELETE-mode DBs have nothing to checkpoint — proceed to reload.
+    }
+    try {
+      await reloadWidgetTimelines();
+    } catch (e) {
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        console.warn("[widget] reloadTimelines failed", e);
+      }
+    }
+  })();
 }
 
 // NOTE: every function takes `db` as the first arg and imports nothing
@@ -215,7 +230,7 @@ export async function addExpense(
   const expense: Expense = { id: generateId(), ...valid, createdAt: now };
   try {
     await insertExpense(db, expense);
-    pokeWidget();
+    pokeWidget(db);
     return expense;
   } catch (error) {
     toUserMessage(error);
@@ -252,7 +267,7 @@ export async function editExpense(
     const existing = await getExpenseById(db, input.id);
     if (!existing) throw new NotFoundError("Expense not found.");
     await updateExpense(db, input.id, valid);
-    pokeWidget();
+    pokeWidget(db);
     return { ...existing, ...valid };
   } catch (error) {
     toUserMessage(error);
@@ -267,7 +282,7 @@ export async function removeExpense(
     const existing = await getExpenseById(db, id);
     if (!existing) throw new NotFoundError("Expense not found.");
     await deleteExpense(db, id);
-    pokeWidget();
+    pokeWidget(db);
   } catch (error) {
     toUserMessage(error);
   }
@@ -276,7 +291,7 @@ export async function removeExpense(
 export async function clearAllExpenses(db: SQLiteDatabase): Promise<void> {
   try {
     await deleteAllExpenses(db);
-    pokeWidget();
+    pokeWidget(db);
   } catch (error) {
     toUserMessage(error);
   }
@@ -460,7 +475,7 @@ export async function postDueRecurring(
       toUserMessage(error);
     }
   }
-  if (posted.length > 0) pokeWidget();
+  if (posted.length > 0) pokeWidget(db);
   return posted;
 }
 

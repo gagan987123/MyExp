@@ -248,7 +248,12 @@ struct AddExpenseIntent: AppIntent {
     }
     var finalCategory = Self.resolveCategory(note: note, hint: nil)
     var aiTag = ""
-    let now = ISO8601DateFormatter().string(from: Date())
+    // Millis + UTC, exactly like the app's new Date().toISOString(),
+    // so the widget's month-range query sees Siri rows identically.
+    let isoFormatter = ISO8601DateFormatter()
+    isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    isoFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+    let now = isoFormatter.string(from: Date())
     let id = UUID().uuidString
     let cleanNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
     var finalKind = finalCategory == "salary" ? "income" : "expense"
@@ -325,6 +330,9 @@ struct AddExpenseIntent: AppIntent {
     guard sqlite3_step(stmt) == SQLITE_DONE else {
       throw AddExpenseError.writeFailed
     }
+    // Flush any WAL frames into the main file so the readonly widget
+    // reader sees this row, then ask WidgetKit to refresh now.
+    sqlite3_exec(db, "PRAGMA wal_checkpoint(TRUNCATE);", nil, nil, nil)
     WidgetCenter.shared.reloadTimelines(ofKind: "MyExpWidget")
     let kindWord = finalKind == "income" ? "earned" : "spent"
     return .result(dialog: "Saved \\(Int(amount)) rupees \\(kindWord) for \\(cleanNote.isEmpty ? finalCategory : cleanNote)\\(aiTag).")

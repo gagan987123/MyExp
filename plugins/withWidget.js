@@ -60,27 +60,45 @@ struct MonthProvider: TimelineProvider {
     guard let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "${APP_GROUP_ID}") else {
       return fallback
     }
+    // Local-month boundaries as UTC ISO strings. The app stores
+    // toISOString() (UTC) dates, so a local "yyyy-MM" prefix wrongly
+    // drops rows near month edges (e.g. Oct 1 00:30 IST == Sep 30 UTC).
+    // ISO-8601 UTC strings sort lexicographically == chronologically,
+    // so a closed-open range matches the app's isThisMonth() exactly.
+    let calendar = Calendar.current
+    let comps = calendar.dateComponents([.year, .month], from: now)
+    guard let monthStart = calendar.date(from: comps),
+      let nextMonthStart = calendar.date(byAdding: .month, value: 1, to: monthStart)
+    else {
+      return fallback
+    }
+    let iso = ISO8601DateFormatter()
+    iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    iso.timeZone = TimeZone(secondsFromGMT: 0)
+    let lower = iso.string(from: monthStart)
+    let upper = iso.string(from: nextMonthStart)
     let dbPath = dir.appendingPathComponent("expenses.db").path
     var db: OpaquePointer?
+    // Shared DB runs in DELETE journal mode (see lib/db.ts) so a
+    // readonly cross-process reader always sees committed writes.
     guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
       return fallback
     }
     defer { sqlite3_close(db) }
     sqlite3_busy_timeout(db, 2000)
-    let formatter = DateFormatter()
-    formatter.dateFormat = "yyyy-MM"
-    let prefix = formatter.string(from: now)
-    let sql = "SELECT category, SUM(amount) FROM expenses WHERE kind = 'expense' AND substr(date, 1, 7) = ? GROUP BY category ORDER BY SUM(amount) DESC LIMIT 4;"
+    let sql = "SELECT category, SUM(amount) FROM expenses WHERE kind = 'expense' AND date >= ? AND date < ? GROUP BY category ORDER BY SUM(amount) DESC LIMIT 4;"
     var stmt: OpaquePointer?
     guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
       return fallback
     }
     defer { sqlite3_finalize(stmt) }
-    sqlite3_bind_text(stmt, 1, (prefix as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+    sqlite3_bind_text(stmt, 1, (lower as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+    sqlite3_bind_text(stmt, 2, (upper as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
     var spent = 0.0
     var rows: [(String, Double)] = []
     while sqlite3_step(stmt) == SQLITE_ROW {
-      let category = String(cString: sqlite3_column_text(stmt, 0))
+      guard let cText = sqlite3_column_text(stmt, 0) else { continue }
+      let category = String(cString: cText)
       let sum = sqlite3_column_double(stmt, 1)
       spent += sum
       rows.append((category, sum))
