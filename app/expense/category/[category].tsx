@@ -1,10 +1,12 @@
 import "@/global.css";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useCallback, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryIcon from "@/components/CategoryIcon";
+import ExportSheet from "@/components/ExportSheet";
 import { useCategories, findCategory } from "@/hooks/useCategories";
 import {
   listExpenses,
@@ -50,6 +52,7 @@ export default function CategoryExpensesScreen() {
 
   const meta = findCategory(categories, category ?? "other");
   const monthName = new Date().toLocaleString("en-IN", { month: "long" });
+  const [showExport, setShowExport] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -110,6 +113,40 @@ export default function CategoryExpensesScreen() {
             {items.length} expense{items.length === 1 ? "" : "s"} this month
           </Text>
         </View>
+
+        <Pressable
+          className="list-action"
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            alignSelf: "flex-start",
+            marginTop: 16,
+            marginBottom: 4,
+            paddingVertical: 10,
+            paddingHorizontal: 4,
+            minHeight: 44,
+            opacity: items.length === 0 ? 0.45 : 1,
+          }}
+          disabled={items.length === 0}
+          onPress={() => setShowExport(true)}
+        >
+          <MaterialCommunityIcons
+            name="download"
+            size={18}
+            color="#F4F1EA"
+          />
+          <Text className="list-action-text">
+            {`Download PDF (${items.length})`}
+          </Text>
+        </Pressable>
+
+        <ExportSheet
+          visible={showExport}
+          onClose={() => setShowExport(false)}
+          categoryId={category}
+          title={`${meta.name} export`}
+        />
 
         {items.length === 0 ? (
           <Text className="home-empty-state">

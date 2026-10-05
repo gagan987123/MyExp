@@ -332,7 +332,11 @@ struct AddExpenseIntent: AppIntent {
     }
     // Flush any WAL frames into the main file so the readonly widget
     // reader sees this row, then ask WidgetKit to refresh now.
+    sqlite3_exec(db, "PRAGMA journal_mode = DELETE;", nil, nil, nil)
     sqlite3_exec(db, "PRAGMA wal_checkpoint(TRUNCATE);", nil, nil, nil)
+    // Backup for throttled reloads: dirty flag the app consumes on next
+    // foreground for one guaranteed refresh (see index.tsx load()).
+    sqlite3_exec(db, "INSERT INTO app_kv (key, value) VALUES ('widget-dirty', '1') ON CONFLICT(key) DO UPDATE SET value = '1';", nil, nil, nil)
     WidgetCenter.shared.reloadTimelines(ofKind: "MyExpWidget")
     let kindWord = finalKind == "income" ? "earned" : "spent"
     return .result(dialog: "Saved \\(Int(amount)) rupees \\(kindWord) for \\(cleanNote.isEmpty ? finalCategory : cleanNote)\\(aiTag).")

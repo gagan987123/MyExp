@@ -12,6 +12,12 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.gagan987123.myexp",
       "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "upi",
+          "phonepe",
+          "tez",
+          "paytmmp"
+        ],
         "UIApplicationSceneManifest": {
           "UIApplicationSupportsMultipleScenes": false,
           "UISceneConfigurations": {
@@ -56,6 +62,7 @@
       "expo-sqlite",
       "./plugins/withSiriIntents",
       "./plugins/withWidget",
+      "./plugins/withShareExtension",
       "expo-secure-store",
       "expo-sharing"
     ],

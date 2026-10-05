@@ -3,7 +3,7 @@ import { File, Paths } from "expo-file-system";
 import { copyAsync } from "expo-file-system/legacy";
 
 export const DATABASE_NAME = "expenses.db";
-const DATABASE_VERSION = 5;
+const DATABASE_VERSION = 7;
 
 /** Must match the App Group in app.json + the Swift intent. */
 export const APP_GROUP_ID = "group.com.gagan987123.myexp";
@@ -128,6 +128,39 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
       );
     `);
     currentVersion = 5;
+  }
+
+  // v5 → v6: Scan & Pay payment attempts. One row per UPI app-switch,
+  // keyed by our own tr (UNIQUE) so retries/kills/double-taps can
+  // never produce two expenses. Siri never touches this table.
+  if (currentVersion === 5) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS payment_attempts (
+        id TEXT PRIMARY KEY NOT NULL,
+        tr TEXT NOT NULL UNIQUE,
+        pa TEXT NOT NULL,
+        pn TEXT,
+        amount REAL NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'INR',
+        note TEXT,
+        app TEXT NOT NULL DEFAULT 'generic',
+        status TEXT NOT NULL DEFAULT 'pending_result',
+        expense_id TEXT,
+        created_at TEXT NOT NULL,
+        resolved_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_attempts_status ON payment_attempts(status, created_at);
+    `);
+    currentVersion = 6;
+  }
+
+  // v6 → v7: UPI payment flow removed (share-from-UPI-app is the only
+  // intake now). Drop its audit table; expenses it created stay.
+  if (currentVersion === 6) {
+    await db.execAsync(`
+      DROP TABLE IF EXISTS payment_attempts;
+    `);
+    currentVersion = 7;
   }
 
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

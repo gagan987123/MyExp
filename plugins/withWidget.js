@@ -86,6 +86,21 @@ struct MonthProvider: TimelineProvider {
     }
     defer { sqlite3_close(db) }
     sqlite3_busy_timeout(db, 2000)
+    // True month total across ALL categories. The slice query below is
+    // LIMITed to what fits, so summing its rows would silently drop
+    // overflow categories from the headline number.
+    let totalSql = "SELECT SUM(amount) FROM expenses WHERE kind = 'expense' AND date >= ? AND date < ?;"
+    var totalStmt: OpaquePointer?
+    guard sqlite3_prepare_v2(db, totalSql, -1, &totalStmt, nil) == SQLITE_OK else {
+      return fallback
+    }
+    defer { sqlite3_finalize(totalStmt) }
+    sqlite3_bind_text(totalStmt, 1, (lower as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+    sqlite3_bind_text(totalStmt, 2, (upper as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+    var spent = 0.0
+    if sqlite3_step(totalStmt) == SQLITE_ROW {
+      spent = sqlite3_column_double(totalStmt, 0)
+    }
     let sql = "SELECT category, SUM(amount) FROM expenses WHERE kind = 'expense' AND date >= ? AND date < ? GROUP BY category ORDER BY SUM(amount) DESC LIMIT 4;"
     var stmt: OpaquePointer?
     guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
@@ -94,14 +109,25 @@ struct MonthProvider: TimelineProvider {
     defer { sqlite3_finalize(stmt) }
     sqlite3_bind_text(stmt, 1, (lower as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
     sqlite3_bind_text(stmt, 2, (upper as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
-    var spent = 0.0
+    var shown = 0.0
     var rows: [(String, Double)] = []
     while sqlite3_step(stmt) == SQLITE_ROW {
       guard let cText = sqlite3_column_text(stmt, 0) else { continue }
       let category = String(cString: cText)
       let sum = sqlite3_column_double(stmt, 1)
-      spent += sum
+      shown += sum
       rows.append((category, sum))
+    }
+    // Overflow bucket: anything outside the top 4 still counts in the
+    // total. Fold it into the "other" slice when present, else append
+    // one, so slices always reconcile with the headline.
+    let remainder = spent - shown
+    if remainder > 0.005 {
+      if let i = rows.firstIndex(where: { $0.0 == "other" }) {
+        rows[i].1 += remainder
+      } else {
+        rows.append(("other", remainder))
+      }
     }
     let slices = rows.map { (category, sum) in
       CategorySlice(

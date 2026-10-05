@@ -210,9 +210,10 @@ export default function SettingsScreen() {
               <Text className="sub-title">Smarter Siri (AI)</Text>
               <Text className="sub-meta">
                 Normally Siri files by fixed words. Turn this on and Siri
-                asks AI instead — it understands new items with no list
-                needed. Costs about a tenth of a paise per
-                save. Off means everything works exactly as before.
+                — plus receipts you share to MyExp — ask AI instead: it
+                understands new items with no list needed. Costs about a
+                tenth of a paise per save. Off means everything works
+                exactly as before.
               </Text>
             </View>
             <Switch
@@ -328,9 +329,9 @@ export default function SettingsScreen() {
             </View>
           ) : null}
           <Text className="sub-meta" style={{ marginTop: 8 }}>
-            The key stays in this phone's keychain, with a Siri-only copy
-            beside your data. No key, no internet, or timeout → Siri quietly
-            uses word-list mode.
+            The key stays in the keychain on this phone, with a Siri-only
+            copy beside your data. No key, no internet, or timeout
+            → Siri quietly uses word-list mode.
           </Text>
         </View>
 

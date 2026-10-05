@@ -9,6 +9,8 @@ import CategoryIcon from "@/components/CategoryIcon";
 import ExportSheet from "@/components/ExportSheet";
 import MonthInsights from "@/components/MonthInsights";
 import { syncSharedAiFiles } from "@/lib/aiKey";
+import { deleteKv, getKv } from "@/lib/queries";
+import { reloadWidgetTimelines } from "widget-reload";
 import { useCategories, findCategory } from "@/hooks/useCategories";
 import {
   getMonthCategoryTotals,
@@ -58,14 +60,26 @@ export default function HomeScreen() {
       await syncSharedAiFiles(db).catch(() => {});
       // Post any due recurring salary/EMIs first (idempotent catch-up).
       await postDueRecurring(db).catch(() => []);
-      const [total, income, all, templates, month, hist] = await Promise.all([
-        getMonthTotal(db),
-        getMonthIncome(db),
-        listExpenses(db),
-        listRecurringTemplates(db),
-        getMonthCategoryTotals(db),
-        getMonthlyHistory(db, 6),
-      ]);
+      // Siri / Share extensions ask WidgetKit to refresh, but those
+      // requests are silently throttled over budget — so they also leave
+      // a dirty flag we consume here for one guaranteed refresh.
+      try {
+        if ((await getKv(db, "widget-dirty")) === "1") {
+          await deleteKv(db, "widget-dirty").catch(() => {});
+          await reloadWidgetTimelines().catch(() => {});
+        }
+      } catch {
+        // pre-v7 table or locked momentarily: next load retries
+      }
+      const [total, income, all, templates, month, hist] =
+        await Promise.all([
+          getMonthTotal(db),
+          getMonthIncome(db),
+          listExpenses(db),
+          listRecurringTemplates(db),
+          getMonthCategoryTotals(db),
+          getMonthlyHistory(db, 6),
+        ]);
       setMonthTotal(total);
       setMonthIncome(income);
       setRecent(all.slice(0, 4));

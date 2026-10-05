@@ -59,9 +59,15 @@ const MONTHS = lastMonths(12);
 export default function ExportSheet({
   visible,
   onClose,
+  categoryId,
+  title,
 }: {
   visible: boolean;
   onClose: () => void;
+  /** When set, the whole sheet (rows, count, PDF) scopes to this category. */
+  categoryId?: string;
+  /** Modal title override, e.g. the category name. */
+  title?: string;
 }) {
   const db = useSQLiteContext();
   const [all, setAll] = useState<Expense[]>([]);
@@ -80,7 +86,9 @@ export default function ExportSheet({
   }, [db, visible]);
 
   const range: DateRange = { from, to };
-  const rows = filterByRange(all, range);
+  const rows = filterByRange(all, range).filter(
+    (e) => categoryId == null || e.category === categoryId
+  );
 
   function applyPreset(kind: "month" | "last" | "three" | "all") {
     const now = new Date();
@@ -132,12 +140,13 @@ export default function ExportSheet({
       const cats = await getCategories(db);
       const names = new Map(cats.map((c) => [c.id, c.name] as const));
       const logo = await loadLogoDataUri();
-      const html = buildReportHtml(all, range, logo, (id) =>
+      const html = buildReportHtml(rows, range, logo, (id) =>
         names.get(id) ?? id
       );
       const { uri } = await Print.printToFileAsync({ html });
+      const scoped = categoryId != null ? names.get(categoryId) : undefined;
       await Sharing.shareAsync(uri, {
-        dialogTitle: "MyExp report",
+        dialogTitle: scoped ? `${scoped} report` : "MyExp report",
         mimeType: "application/pdf",
       });
       onClose();
@@ -152,7 +161,7 @@ export default function ExportSheet({
       <View className="modal-overlay">
         <View className="modal-container">
           <View className="modal-header">
-            <Text className="modal-title">Export</Text>
+            <Text className="modal-title">{title ?? "Export"}</Text>
             <Pressable className="modal-close" onPress={onClose}>
               <Text className="modal-close-text">✕</Text>
             </Pressable>
