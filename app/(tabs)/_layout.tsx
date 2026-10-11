@@ -70,6 +70,17 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="trips"
+        options={{
+          title: "Trips",
+          tabBarIcon: ({ focused }) => (
+            <View className="tabs-icon">
+              <TabIcon name="account-group" focused={focused} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: "Settings",

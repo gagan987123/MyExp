@@ -3,7 +3,7 @@ import { File, Paths } from "expo-file-system";
 import { copyAsync } from "expo-file-system/legacy";
 
 export const DATABASE_NAME = "expenses.db";
-const DATABASE_VERSION = 7;
+const DATABASE_VERSION = 9;
 
 /** Must match the App Group in app.json + the Swift intent. */
 export const APP_GROUP_ID = "group.com.gagan987123.myexp";
@@ -50,6 +50,11 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
   } catch {
     // Non-fatal: widget may lag until the next checkpoint.
   }
+  // Self-healing columns (always runs, even past the version gate):
+  // observed a v9-stamped database missing its ALTERs in the wild, and
+  // a version guard can never refire for it. One statement per exec.
+  await ensureColumn(db, "trip_expenses", "split_custom", "split_custom TEXT");
+  await ensureColumn(db, "trips", "archived", "archived INTEGER NOT NULL DEFAULT 0");
   const row = await db.getFirstAsync<{ user_version: number }>(
     "PRAGMA user_version"
   );
@@ -163,5 +168,79 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
     currentVersion = 7;
   }
 
+  // v7 → v8: group trips (Splitwise core). Members are per-trip names —
+  // no accounts, no backend. split_between is a JSON member-id array
+  // snapshotted at creation; personal_expense_id links the auto-posted
+  // personal share (deleted together). Siri never touches these.
+  if (currentVersion === 7) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS trips (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS trip_members (
+        id TEXT PRIMARY KEY NOT NULL,
+        trip_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_trip_members_trip ON trip_members(trip_id);
+      CREATE TABLE IF NOT EXISTS trip_expenses (
+        id TEXT PRIMARY KEY NOT NULL,
+        trip_id TEXT NOT NULL,
+        amount REAL NOT NULL,
+        category TEXT NOT NULL,
+        note TEXT,
+        paid_by TEXT NOT NULL,
+        split_between TEXT NOT NULL,
+        date TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        personal_expense_id TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_trip_expenses_trip ON trip_expenses(trip_id);
+      CREATE TABLE IF NOT EXISTS trip_settlements (
+        id TEXT PRIMARY KEY NOT NULL,
+        trip_id TEXT NOT NULL,
+        from_member TEXT NOT NULL,
+        to_member TEXT NOT NULL,
+        amount REAL NOT NULL,
+        date TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_trip_settlements_trip ON trip_settlements(trip_id);
+    `);
+    currentVersion = 8;
+  }
+
+  // v8 → v9: trip custom splits (member-id → paise JSON, NULL = equal)
+  // plus trip archiving. No data rewrite: old rows read as equal splits.
+  // One statement per exec: a multi-statement exec once left a database
+  // stamped v9 without these columns, which no version guard can heal.
+  if (currentVersion === 8) {
+    await db.execAsync(`ALTER TABLE trip_expenses ADD COLUMN split_custom TEXT;`);
+    await db.execAsync(`ALTER TABLE trips ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;`);
+    currentVersion = 9;
+  }
+
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
+}
+
+/** Adds a missing column; no-op when present or when the table is absent. */
+async function ensureColumn(
+  db: SQLiteDatabase,
+  table: string,
+  column: string,
+  ddl: string
+): Promise<void> {
+  try {
+    const info = await db.getAllAsync<{ name: string }>(
+      `PRAGMA table_info(${table})`
+    );
+    if (!info.some((c) => c.name === column)) {
+      await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+    }
+  } catch {
+    // Table absent (created later in this run) or transient lock.
+  }
 }
