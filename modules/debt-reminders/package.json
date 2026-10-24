@@ -1,0 +1,7 @@
+{
+  "name": "debt-reminders",
+  "version": "1.0.0",
+  "description": "Local-only debt reminder notifications (no push entitlement)",
+  "main": "index.ts",
+  "types": "index.d.ts"
+}

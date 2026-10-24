@@ -16,7 +16,8 @@
           "upi",
           "phonepe",
           "tez",
-          "paytmmp"
+          "paytmmp",
+          "whatsapp"
         ],
         "UIApplicationSceneManifest": {
           "UIApplicationSupportsMultipleScenes": false,

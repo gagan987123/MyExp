@@ -1,0 +1,8 @@
+{
+  "name": "debt-reminders",
+  "platforms": ["ios"],
+  "apple": {
+    "modules": ["DebtRemindersModule"],
+    "podspecPath": "debt-reminders.podspec"
+  }
+}

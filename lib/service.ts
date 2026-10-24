@@ -6,6 +6,8 @@ import {
   deleteCustomCategory,
   deleteExpense,
   deleteKv,
+  deleteLoan,
+  deleteLoanPayment,
   deleteRecurringTemplate,
   deleteTripData,
   deleteTripExpense,
@@ -15,6 +17,9 @@ import {
   getCustomCategories,
   getExpenseById,
   getKv,
+  getLoanById,
+  getLoanPayments,
+  getLoans,
   getRecurringTemplates,
   getTripById,
   getTripExpenseById,
@@ -24,6 +29,8 @@ import {
   getTripSettlements,
   insertCustomCategory,
   insertExpense,
+  insertLoan,
+  insertLoanPayment,
   insertRecurringTemplate,
   insertTrip,
   insertTripExpense,
@@ -38,6 +45,9 @@ import {
   type CustomCategory,
   type EntryKind,
   type Expense,
+  type Loan,
+  type LoanKind,
+  type LoanPayment,
   type RecurringTemplate,
   type Trip,
   type TripExpense,
@@ -46,7 +56,7 @@ import {
 } from "./queries";
 
 export type { CategoryId, CustomCategory, EntryKind, Expense, RecurringTemplate };
-export type { Trip, TripExpense, TripMember, TripSettlement };
+export type { Loan, LoanKind, LoanPayment, Trip, TripExpense, TripMember, TripSettlement };
 // Read-only trip helpers live in queries (no service wrapping needed).
 export { getTripExpenses, getTripSettlements } from "./queries";
 
@@ -1155,4 +1165,192 @@ export async function settleTransfer(
 
 export async function undoSettlement(db: SQLiteDatabase, id: string): Promise<void> {
   await deleteTripSettlement(db, id);
+}
+
+// --- Personal loans ----------------------------------------------------------
+// kind 'lent' = they owe me, 'borrowed' = I owe them. Outstanding always
+// excludes fully-repaid loans (balance <= half-paisa dust).
+
+export type AddLoanInput = {
+  person: string;
+  contact?: string | null;
+  kind: LoanKind;
+  amount: number;
+  note?: string | null;
+  date?: Date | string;
+};
+
+export async function addLoan(db: SQLiteDatabase, input: AddLoanInput): Promise<Loan> {
+  const person = input.person.trim();
+  if (person.length === 0 || person.length > 24) {
+    throw new ValidationError("Person name must be 1–24 characters.");
+  }
+  const contact = (input.contact ?? "").trim();
+  if (!isValidPhone(contact)) {
+    throw new ValidationError("Add their phone number — nudges go by SMS.");
+  }
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    throw new ValidationError("Amount must be greater than 0.");
+  }
+  if (input.kind !== "lent" && input.kind !== "borrowed") {
+    throw new ValidationError("Pick lent or borrowed.");
+  }
+  const now = new Date().toISOString();
+  const loan: Loan = {
+    id: generateId(),
+    person,
+    contact,
+    kind: input.kind,
+    amount: Math.round(input.amount * 100) / 100,
+    note: input.note?.trim() ? input.note.trim() : null,
+    date: toISODate(input.date),
+    createdAt: now,
+  };
+  await insertLoan(db, loan);
+  return loan;
+}
+
+/** Digits (and an optional leading +), 7–15 long. Displayed as typed. */
+export function isValidPhone(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  const digits = raw.replace(/[^\d]/g, "");
+  return digits.length >= 7 && digits.length <= 15;
+}
+
+/** Dial/SMS-safe form: leading + kept, separators stripped. */
+export function normalizePhone(raw: string): string {
+  const trimmed = raw.trim();
+  const plus = trimmed.startsWith("+") ? "+" : "";
+  return plus + trimmed.replace(/[^\d]/g, "");
+}
+
+export async function listLoans(db: SQLiteDatabase): Promise<Loan[]> {
+  return getLoans(db);
+}
+
+/** Outstanding balance in paise (> 0 means still open). */
+export async function loanBalancePaise(db: SQLiteDatabase, loanId: string): Promise<number> {
+  const loan = await getLoanById(db, loanId);
+  if (!loan) throw new NotFoundError("Entry not found.");
+  const payments = await getLoanPayments(db, loanId);
+  return Math.round(loan.amount * 100) - payments.reduce((s, p) => s + Math.round(p.amount * 100), 0);
+}
+
+export async function listLoanPayments(db: SQLiteDatabase, loanId: string): Promise<LoanPayment[]> {
+  return getLoanPayments(db, loanId);
+}
+
+/** Records a partial (or full) repayment. Rejects over-payment. */
+export async function repayLoan(
+  db: SQLiteDatabase,
+  loanId: string,
+  amount: number
+): Promise<LoanPayment> {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new ValidationError("Amount must be greater than 0.");
+  }
+  const due = await loanBalancePaise(db, loanId);
+  const paise = Math.round(amount * 100);
+  if (paise > due) {
+    throw new ValidationError(
+      `Only ${formatOwed(due)} is still outstanding.`
+    );
+  }
+  const now = new Date().toISOString();
+  const payment: LoanPayment = {
+    id: generateId(),
+    loanId,
+    amount: paise / 100,
+    date: now,
+    createdAt: now,
+  };
+  await insertLoanPayment(db, payment);
+  return payment;
+}
+
+function formatOwed(paise: number): string {
+  try {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 0,
+    }).format(paise / 100);
+  } catch {
+    return `Rs.${paise / 100}`;
+  }
+}
+
+export async function removeLoan(db: SQLiteDatabase, id: string): Promise<void> {
+  await deleteLoan(db, id);
+}
+
+export async function undoLoanPayment(db: SQLiteDatabase, id: string): Promise<void> {
+  await deleteLoanPayment(db, id);
+}
+
+export type Receivable = {
+  /** Stable key for notification identity: loan:<id> / trip:<trip>:<member>. */
+  key: string;
+  kind: "loan" | "trip";
+  tripId?: string;
+  loanId?: string;
+  person: string;
+  /** Phone number when known (loans require it). */
+  contact?: string | null;
+  /** Rupees still owed to me. */
+  amount: number;
+  context: string;
+};
+
+/** Every open debt pointed at me: lent loans + trip transfers to my member. */
+export async function getMyReceivables(db: SQLiteDatabase): Promise<Receivable[]> {
+  const out: Receivable[] = [];
+  try {
+    const loans = await getLoans(db);
+    for (const loan of loans) {
+      if (loan.kind !== "lent") continue;
+      const payments = await getLoanPayments(db, loan.id);
+      const due =
+        Math.round(loan.amount * 100) -
+        payments.reduce((s, p) => s + Math.round(p.amount * 100), 0);
+      if (due > 0) {
+        out.push({
+          key: `loan:${loan.id}`,
+          kind: "loan",
+          loanId: loan.id,
+          person: loan.person,
+          contact: loan.contact,
+          amount: due / 100,
+          context: loan.note ?? "Personal loan",
+        });
+      }
+    }
+  } catch {
+    // pre-v10 database
+  }
+  try {
+    const trips = await getTrips(db);
+    for (const trip of trips) {
+      if (trip.archived) continue;
+      const me = await getTripMe(db, trip.id);
+      if (!me) continue;
+      const bal = await getTripBalances(db, trip.id);
+      for (const t of bal.transfers) {
+        if (t.toMemberId === me) {
+          out.push({
+            key: `trip:${trip.id}:${t.fromMemberId}`,
+            kind: "trip",
+            tripId: trip.id,
+            person: t.fromName,
+            amount: t.amount,
+            context: trip.name,
+          });
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return out.sort((a, b) => b.amount - a.amount);
 }

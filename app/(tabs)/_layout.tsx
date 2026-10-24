@@ -81,6 +81,17 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="loans"
+        options={{
+          title: "Loans",
+          tabBarIcon: ({ focused }) => (
+            <View className="tabs-icon">
+              <TabIcon name="handshake" focused={focused} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: "Settings",

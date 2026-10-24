@@ -19,6 +19,9 @@ import {
   resolveDatabaseDirectory,
 } from "@/lib/db";
 
+// Debt-reminder foreground presentation is handled natively
+// (DebtRemindersModule sets itself as the notification delegate).
+
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function DbLoadingFallback() {

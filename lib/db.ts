@@ -3,7 +3,7 @@ import { File, Paths } from "expo-file-system";
 import { copyAsync } from "expo-file-system/legacy";
 
 export const DATABASE_NAME = "expenses.db";
-const DATABASE_VERSION = 9;
+const DATABASE_VERSION = 10;
 
 /** Must match the App Group in app.json + the Swift intent. */
 export const APP_GROUP_ID = "group.com.gagan987123.myexp";
@@ -221,6 +221,36 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
     await db.execAsync(`ALTER TABLE trip_expenses ADD COLUMN split_custom TEXT;`);
     await db.execAsync(`ALTER TABLE trips ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;`);
     currentVersion = 9;
+  }
+
+  // v9 → v10: personal loans ledger (lent/borrowed outside trips) with
+  // partial repayments. Balance is always derived, never stored.
+  if (currentVersion === 9) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS loans (
+        id TEXT PRIMARY KEY NOT NULL,
+        person TEXT NOT NULL,
+        contact TEXT,
+        kind TEXT NOT NULL,
+        amount REAL NOT NULL,
+        note TEXT,
+        date TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+    `);
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS loan_payments (
+        id TEXT PRIMARY KEY NOT NULL,
+        loan_id TEXT NOT NULL,
+        amount REAL NOT NULL,
+        date TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+    `);
+    await db.execAsync(`
+      CREATE INDEX IF NOT EXISTS idx_loan_payments_loan ON loan_payments(loan_id);
+    `);
+    currentVersion = 10;
   }
 
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
