@@ -8,7 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import CategoryIcon from "@/components/CategoryIcon";
 import ExportSheet from "@/components/ExportSheet";
 import MonthInsights from "@/components/MonthInsights";
-import { syncSharedAiFiles } from "@/lib/aiKey";
+import { syncSharedAiFiles } from "@/lib/ai/key";
 import { deleteKv, getKv } from "@/lib/queries";
 import { reloadWidgetTimelines } from "widget-reload";
 import { useCategories, findCategory } from "@/hooks/useCategories";

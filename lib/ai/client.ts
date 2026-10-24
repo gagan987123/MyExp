@@ -1,4 +1,4 @@
-import { getAiKey } from "./aiKey";
+import { getAiKey } from "./key";
 
 const ENDPOINT = "https://openrouter.ai/api/alpha/decisions";
 const MODEL = "typesafe/jev-1.13";

@@ -13,9 +13,9 @@ import {
   filterByRange,
   rangeLabel,
   type DateRange,
-} from "@/lib/csv";
-import { buildReportHtml } from "@/lib/report";
-import { loadLogoDataUri } from "@/lib/logo";
+} from "@/lib/export/dateRange";
+import { buildReportHtml } from "@/lib/export/report";
+import { loadLogoDataUri } from "@/lib/export/logo";
 import { getCategories, listExpenses, type Expense } from "@/lib/service";
 
 function startOfMonth(y: number, m: number): Date {

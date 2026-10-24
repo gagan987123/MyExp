@@ -1,35 +1,6 @@
 import type { SQLiteDatabase } from "expo-sqlite";
-import { File, Paths } from "expo-file-system";
-import { copyAsync } from "expo-file-system/legacy";
 
-export const DATABASE_NAME = "expenses.db";
 const DATABASE_VERSION = 10;
-
-/** Must match the App Group in app.json + the Swift intent. */
-export const APP_GROUP_ID = "group.com.gagan987123.myexp";
-
-/**
- * Returns the shared App Group directory when available (device builds
- * with the entitlement), otherwise undefined (default sandbox dir).
- * On first shared run, migrates the existing sandbox database file over,
- * so no expenses are lost in the move. One file, one truth, both targets.
- */
-export async function resolveDatabaseDirectory(): Promise<string | undefined> {
-  try {
-    const shared = Paths.appleSharedContainers?.[APP_GROUP_ID];
-    if (!shared) return undefined;
-    const dest = new File(shared, DATABASE_NAME);
-    if (!dest.exists) {
-      const legacy = new File(Paths.document, "SQLite", DATABASE_NAME);
-      if (legacy.exists) {
-        await copyAsync({ from: legacy.uri, to: dest.uri });
-      }
-    }
-    return shared.uri;
-  } catch {
-    return undefined;
-  }
-}
 
 export async function migrateDbIfNeeded(db: SQLiteDatabase) {
   // The WidgetKit extension reads this same file with a plain
@@ -54,9 +25,14 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
   // observed a v9-stamped database missing its ALTERs in the wild, and
   // a version guard can never refire for it. One statement per exec.
   await ensureColumn(db, "trip_expenses", "split_custom", "split_custom TEXT");
-  await ensureColumn(db, "trips", "archived", "archived INTEGER NOT NULL DEFAULT 0");
+  await ensureColumn(
+    db,
+    "trips",
+    "archived",
+    "archived INTEGER NOT NULL DEFAULT 0",
+  );
   const row = await db.getFirstAsync<{ user_version: number }>(
-    "PRAGMA user_version"
+    "PRAGMA user_version",
   );
   let currentVersion = row?.user_version ?? 0;
   if (currentVersion >= DATABASE_VERSION) return;
@@ -218,8 +194,12 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
   // One statement per exec: a multi-statement exec once left a database
   // stamped v9 without these columns, which no version guard can heal.
   if (currentVersion === 8) {
-    await db.execAsync(`ALTER TABLE trip_expenses ADD COLUMN split_custom TEXT;`);
-    await db.execAsync(`ALTER TABLE trips ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;`);
+    await db.execAsync(
+      `ALTER TABLE trip_expenses ADD COLUMN split_custom TEXT;`,
+    );
+    await db.execAsync(
+      `ALTER TABLE trips ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;`,
+    );
     currentVersion = 9;
   }
 
@@ -261,11 +241,11 @@ async function ensureColumn(
   db: SQLiteDatabase,
   table: string,
   column: string,
-  ddl: string
+  ddl: string,
 ): Promise<void> {
   try {
     const info = await db.getAllAsync<{ name: string }>(
-      `PRAGMA table_info(${table})`
+      `PRAGMA table_info(${table})`,
     );
     if (!info.some((c) => c.name === column)) {
       await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);

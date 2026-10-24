@@ -1,5 +1,3 @@
-import { Linking } from "react-native";
-import { deleteKv, getKv, setKv } from "./queries";
 import {
   cancelRemindersWithPrefix,
   ensureReminderPermission,
@@ -7,13 +5,15 @@ import {
   scheduleDailyReminder,
   scheduleOnceReminder,
 } from "debt-reminders";
+import type { SQLiteDatabase } from "expo-sqlite";
+import { Linking } from "react-native";
+import { deleteKv, getKv, setKv } from "../queries";
 import {
   getMyReceivables,
   isValidPhone,
   normalizePhone,
   type Receivable,
-} from "./service";
-import type { SQLiteDatabase } from "expo-sqlite";
+} from "../service";
 
 const TOGGLE_KEY = "debt-reminders-on";
 const AUTO_PREFIX = "debt-auto-";
@@ -29,7 +29,7 @@ export async function areDebtRemindersOn(db: SQLiteDatabase): Promise<boolean> {
 
 export async function setDebtRemindersOn(
   db: SQLiteDatabase,
-  on: boolean
+  on: boolean,
 ): Promise<void> {
   try {
     if (on) await deleteKv(db, TOGGLE_KEY);
@@ -75,9 +75,7 @@ export async function syncDebtReminders(db: SQLiteDatabase): Promise<void> {
     await Promise.all(
       [...have]
         .filter((id) => !wanted.has(id))
-        .map((id) =>
-          cancelRemindersWithPrefix(id).catch(() => {})
-        )
+        .map((id) => cancelRemindersWithPrefix(id).catch(() => {})),
     );
     await Promise.all(
       receivables
@@ -86,9 +84,9 @@ export async function syncDebtReminders(db: SQLiteDatabase): Promise<void> {
           scheduleDailyReminder(
             autoId(r),
             `${r.person} owes you ${formatINR(r.amount)}`,
-            `${r.context} — tap to open and nudge.`
-          ).catch(() => {})
-        )
+            `${r.context} — tap to open and nudge.`,
+          ).catch(() => {}),
+        ),
     );
   } catch {
     // Native module missing (Expo Go): silent.
@@ -96,7 +94,10 @@ export async function syncDebtReminders(db: SQLiteDatabase): Promise<void> {
 }
 
 /** One-shot "remind me tomorrow 9 AM" for a single debt. Survives syncs. */
-export async function remindOnce(db: SQLiteDatabase, r: Receivable): Promise<boolean> {
+export async function remindOnce(
+  db: SQLiteDatabase,
+  r: Receivable,
+): Promise<boolean> {
   try {
     if (!(await ensureReminderPermission())) return false;
     const when = new Date();
@@ -106,7 +107,7 @@ export async function remindOnce(db: SQLiteDatabase, r: Receivable): Promise<boo
       `debt-once-${r.key}-${Date.now()}`,
       `Follow up: ${r.person} owes you ${formatINR(r.amount)}`,
       `${r.context} — tap to open and nudge.`,
-      when
+      when,
     );
     return true;
   } catch {
@@ -117,12 +118,15 @@ export async function remindOnce(db: SQLiteDatabase, r: Receivable): Promise<boo
 export function nudgeMessage(r: Receivable): string {
   const amount = formatINR(r.amount);
   return r.kind === "trip"
-    ? `Hi ${r.person}! Quick reminder — ${amount} is still pending from our ${r.context} trip 🙂`
-    : `Hi ${r.person}! Quick reminder — ${amount} I lent you${r.context && r.context !== "Personal loan" ? ` (${r.context})` : ""} is still pending 🙂`;
+    ? `Hi ${r.person}! Quick reminder — ${amount} is still pending from our ${r.context} trip 🙂 this is automated msg from MyExp`
+    : `Hi ${r.person}! Quick reminder — ${amount} I lent you${r.context && r.context !== "Personal loan" ? ` (${r.context})` : ""} is still pending 🙂 this is automated msg from MyExp`;
 }
 
 /** Opens the Messages composer with recipient + text. False = unavailable. */
-export async function openSmsNudge(phone: string, text: string): Promise<boolean> {
+export async function openSmsNudge(
+  phone: string,
+  text: string,
+): Promise<boolean> {
   try {
     const to = normalizePhone(phone);
     if (!isValidPhone(to)) return false;

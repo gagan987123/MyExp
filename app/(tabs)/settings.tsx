@@ -18,8 +18,8 @@ import {
   isAiEnabled,
   saveAiKey,
   setAiEnabled,
-} from "@/lib/aiKey";
-import { checkApiKey } from "@/lib/ai";
+} from "@/lib/ai/key";
+import { checkApiKey } from "@/lib/ai/client";
 import { clearAllExpenses } from "@/lib/service";
 
 export default function SettingsScreen() {

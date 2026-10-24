@@ -1,4 +1,4 @@
-import type { Expense } from "./service";
+import type { Expense } from "../service";
 
 export type DateRange = { from: Date; to: Date };
 

@@ -34,7 +34,7 @@ import {
   remindOnce,
   setDebtRemindersOn,
   syncDebtReminders,
-} from "@/lib/reminders";
+} from "@/lib/notifications/reminders";
 
 function formatINR(amount: number): string {
   try {

@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 import * as SecureStore from "expo-secure-store";
-import { deleteKv, getKv, setKv } from "./queries";
+import { deleteKv, getKv, setKv } from "../queries";
 
 const KEY_ITEM = "openrouter_api_key";
 const ENABLED_ITEM = "ai_siri_enabled";

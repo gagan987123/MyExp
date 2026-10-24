@@ -5,8 +5,8 @@ import * as Sharing from "expo-sharing";
 import { useCallback, useState } from "react";
 import { Modal, Pressable, Text, View } from "react-native";
 import { useFocusEffect } from "expo-router";
-import { loadLogoDataUri } from "@/lib/logo";
-import { buildTripReportHtml } from "@/lib/report";
+import { loadLogoDataUri } from "@/lib/export/logo";
+import { buildTripReportHtml } from "@/lib/export/report";
 import {
   fetchTrip,
   getTripBalances,
