@@ -2,9 +2,10 @@ const fs = require("fs");
 const path = require("path");
 const { withXcodeProject } = require("@expo/config-plugins");
 const loadTemplate = require("./loadTemplate");
+const { app, widget } = require("../config/config");
 
-const WIDGET_BUNDLE_ID = "com.gagan987123.myexp.widget";
-const TARGET_NAME = "MyExpWidget";
+const WIDGET_BUNDLE_ID = widget.bundleId;
+const TARGET_NAME = widget.targetName;
 
 const WIDGET_SWIFT = loadTemplate("widget/MyExpWidget.swift");
 
@@ -21,7 +22,7 @@ module.exports = function withWidget(config) {
   return withXcodeProject(config, (config) => {
     const project = config.modResults;
     const projectRoot = config.modRequest.projectRoot;
-    const dir = path.join(projectRoot, "ios", "MyExpWidget");
+    const dir = path.join(projectRoot, "ios", TARGET_NAME);
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, "MyExpWidget.swift"), WIDGET_SWIFT);
     fs.writeFileSync(
@@ -66,7 +67,7 @@ module.exports = function withWidget(config) {
         const cfg = (objects.XCBuildConfiguration || {})[entry.value] || {};
         cfg.buildSettings = cfg.buildSettings || {};
         cfg.buildSettings.SWIFT_VERSION = '"5.0"';
-        cfg.buildSettings.IPHONEOS_DEPLOYMENT_TARGET = '"18.0"';
+        cfg.buildSettings.IPHONEOS_DEPLOYMENT_TARGET = `"${app.iosDeploymentTarget}"`;
         cfg.buildSettings.TARGETED_DEVICE_FAMILY = '"1,2"';
         cfg.buildSettings.CODE_SIGN_ENTITLEMENTS = `"${TARGET_NAME}/${TARGET_NAME}.entitlements"`;
         cfg.buildSettings.APPLICATION_EXTENSION_API_ONLY = "YES";

@@ -139,10 +139,10 @@ class ShareViewController: UIViewController {
   private func loadCustoms() {
     customs = []
     guard let dir = FileManager.default.containerURL(
-      forSecurityApplicationGroupIdentifier: "group.com.gagan987123.myexp")
+      forSecurityApplicationGroupIdentifier: "{{APP_GROUP_ID}}")
     else { return }
     var db: OpaquePointer?
-    let path = dir.appendingPathComponent("expenses.db").path
+    let path = dir.appendingPathComponent("{{DATABASE_NAME}}").path
     guard sqlite3_open_v2(path, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else { return }
     defer { sqlite3_close(db) }
     var stmt: OpaquePointer?
@@ -177,14 +177,14 @@ class ShareViewController: UIViewController {
   /// Nil when AI is off — callers fall back to keyword rules.
   private func aiConfig() -> (key: String, criteria: [String: String])? {
     guard let dir = FileManager.default.containerURL(
-      forSecurityApplicationGroupIdentifier: "group.com.gagan987123.myexp")
+      forSecurityApplicationGroupIdentifier: "{{APP_GROUP_ID}}")
     else { return nil }
     var db: OpaquePointer?
-    let path = dir.appendingPathComponent("expenses.db").path
+    let path = dir.appendingPathComponent("{{DATABASE_NAME}}").path
     guard sqlite3_open_v2(path, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else { return nil }
     defer { sqlite3_close(db) }
-    guard kvValue(db: db, key: "ai-enabled") == "1",
-      let key = kvValue(db: db, key: "ai-key"),
+    guard kvValue(db: db, key: "{{AI_KV_ENABLED}}") == "1",
+      let key = kvValue(db: db, key: "{{AI_KV_KEY}}"),
       !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     else { return nil }
     return (key.trimmingCharacters(in: .whitespacesAndNewlines), ShareParser.aiCriteria(customs: customs))
@@ -194,7 +194,7 @@ class ShareViewController: UIViewController {
   /// confidence, nil on any failure (network, key, timeout, low conf).
   static func askAi(text: String, criteria: [String: String], key: String) async -> String? {
     guard let payload = try? JSONSerialization.data(withJSONObject: [
-      "model": "typesafe/jev-1.13",
+      "model": "{{AI_MODEL}}",
       "state": "User spent money on: \(text)",
       "questions": [
         "category": [
@@ -204,7 +204,7 @@ class ShareViewController: UIViewController {
         ] as [String: Any],
       ],
     ]) else { return nil }
-    var request = URLRequest(url: URL(string: "https://openrouter.ai/api/alpha/decisions")!)
+    var request = URLRequest(url: URL(string: "{{AI_ENDPOINT}}")!)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -263,7 +263,7 @@ class ShareViewController: UIViewController {
       }
       do {
         try self.insertExpense(amount: payment.amount, category: category, note: note)
-        WidgetCenter.shared.reloadTimelines(ofKind: "MyExpWidget")
+        WidgetCenter.shared.reloadTimelines(ofKind: "{{WIDGET_KIND}}")
         await MainActor.run { [weak self] in self?.complete(openApp: openApp) }
       } catch {
         await MainActor.run { [weak self] in
@@ -281,10 +281,10 @@ class ShareViewController: UIViewController {
 
   private func insertExpense(amount: Double, category: String, note: String) throws {
     guard let dir = FileManager.default.containerURL(
-      forSecurityApplicationGroupIdentifier: "group.com.gagan987123.myexp")
+      forSecurityApplicationGroupIdentifier: "{{APP_GROUP_ID}}")
     else { throw ShareSaveError.noSharedContainer }
     var db: OpaquePointer?
-    let path = dir.appendingPathComponent("expenses.db").path
+    let path = dir.appendingPathComponent("{{DATABASE_NAME}}").path
     guard sqlite3_open_v2(path, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK
     else { throw ShareSaveError.cannotOpenDatabase }
     defer { sqlite3_close(db) }

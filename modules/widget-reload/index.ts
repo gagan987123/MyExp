@@ -1,7 +1,8 @@
 import { requireNativeModule } from "expo-modules-core";
+import { widget } from "../../config";
 
 type WidgetReloadModuleType = {
-  reloadTimelines: () => Promise<void>;
+  reloadTimelines: (kind: string) => Promise<void>;
 };
 
 /**
@@ -9,11 +10,13 @@ type WidgetReloadModuleType = {
  * resolves silently on platforms/builds without the native module
  * (Expo Go) or when widgets are unavailable.
  */
-export async function reloadWidgetTimelines(): Promise<void> {
+export async function reloadWidgetTimelines(
+  kind: string = widget.kind
+): Promise<void> {
   try {
     const mod =
       requireNativeModule<WidgetReloadModuleType>("WidgetReload");
-    await mod.reloadTimelines();
+    await mod.reloadTimelines(kind);
   } catch {
     // No native module (Expo Go) or reload denied — widget falls back
     // to its scheduled timeline refreshes.

@@ -1,12 +1,13 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 import * as SecureStore from "expo-secure-store";
+import { ai } from "../../config";
 import { deleteKv, getKv, setKv } from "../queries";
 
-const KEY_ITEM = "openrouter_api_key";
-const ENABLED_ITEM = "ai_siri_enabled";
+const KEY_ITEM = ai.secureKeyItem;
+const ENABLED_ITEM = ai.secureEnabledItem;
 
-const KV_ENABLED = "ai-enabled";
-const KV_KEY = "ai-key";
+const KV_ENABLED = ai.kvEnabledItem;
+const KV_KEY = ai.kvKeyItem;
 
 /** The key, or null when never saved. Lives in the system keychain. */
 export async function getAiKey(): Promise<string | null> {

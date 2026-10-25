@@ -1,8 +1,9 @@
+import { ai } from "../../config";
 import { getAiKey } from "./key";
 
-const ENDPOINT = "https://openrouter.ai/api/alpha/decisions";
-const MODEL = "typesafe/jev-1.13";
-const MIN_CONFIDENCE = 0.7;
+const ENDPOINT = ai.endpoint;
+const MODEL = ai.model;
+const MIN_CONFIDENCE = ai.minConfidence;
 
 export type ApiHealth =
   | { ok: true; detail: string }
@@ -18,7 +19,7 @@ export async function checkApiKey(timeoutMs: number = 8000): Promise<ApiHealth> 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch("https://openrouter.ai/api/v1/key", {
+    const res = await fetch(ai.keyUrl, {
       headers: { Authorization: `Bearer ${key}` },
       signal: controller.signal,
     });

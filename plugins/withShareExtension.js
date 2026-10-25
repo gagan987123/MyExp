@@ -2,11 +2,12 @@ const fs = require("fs");
 const path = require("path");
 const { withXcodeProject } = require("@expo/config-plugins");
 const loadTemplate = require("./loadTemplate");
+const { app, share } = require("../config/config");
 
 // Share-to-log: "Share → MyExp" on any receipt text / screenshot files
 // the expense instantly (same shared SQLite file Siri writes to).
-const SHARE_BUNDLE_ID = "com.gagan987123.myexp.share";
-const TARGET_NAME = "MyExpShare";
+const SHARE_BUNDLE_ID = share.bundleId;
+const TARGET_NAME = share.targetName;
 
 // Foundation-only: unit-tested with `swift ShareParser.swift TestMain.swift`.
 const SHARE_PARSER_SWIFT = loadTemplate("share/ShareParser.swift");
@@ -78,7 +79,7 @@ module.exports = function withShareExtension(config) {
         const cfg = (objects.XCBuildConfiguration || {})[entry.value] || {};
         cfg.buildSettings = cfg.buildSettings || {};
         cfg.buildSettings.SWIFT_VERSION = '"5.0"';
-        cfg.buildSettings.IPHONEOS_DEPLOYMENT_TARGET = '"18.0"';
+        cfg.buildSettings.IPHONEOS_DEPLOYMENT_TARGET = `"${app.iosDeploymentTarget}"`;
         cfg.buildSettings.TARGETED_DEVICE_FAMILY = '"1,2"';
         cfg.buildSettings.CODE_SIGN_ENTITLEMENTS = `"${TARGET_NAME}/${TARGET_NAME}.entitlements"`;
         cfg.buildSettings.APPLICATION_EXTENSION_API_ONLY = "YES";

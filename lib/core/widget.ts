@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 import { reloadWidgetTimelines } from "widget-reload";
+import { widget } from "../../config";
 
 /** Flush the shared DB so the readonly widget reader sees this write,
  * then nudge WidgetKit. Fire-and-forget; warns in dev instead of
@@ -12,7 +13,7 @@ export function pokeWidget(db: SQLiteDatabase): void {
       // DELETE-mode DBs have nothing to checkpoint — proceed to reload.
     }
     try {
-      await reloadWidgetTimelines();
+      await reloadWidgetTimelines(widget.kind);
     } catch (e) {
       if (typeof __DEV__ !== "undefined" && __DEV__) {
         console.warn("[widget] reloadTimelines failed", e);

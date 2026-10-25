@@ -1,10 +1,11 @@
 import { File, Paths } from "expo-file-system";
 import { copyAsync } from "expo-file-system/legacy";
+import { appGroup, database } from "../../config";
 
-export const DATABASE_NAME = "expenses.db";
+export const DATABASE_NAME = database.name;
 
-/** Must match the App Group in app.json + the Swift intent. */
-export const APP_GROUP_ID = "group.com.gagan987123.myexp";
+/** Must match the App Group in config/config.js + the Swift intent. */
+export const APP_GROUP_ID = appGroup;
 
 /**
  * Returns the shared App Group directory when available (device builds

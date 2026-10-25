@@ -102,11 +102,11 @@ struct AddExpenseIntent: AppIntent {
 
   static func sharedDatabaseURL() throws -> URL {
     guard let dir = FileManager.default.containerURL(
-      forSecurityApplicationGroupIdentifier: "group.com.gagan987123.myexp"
+      forSecurityApplicationGroupIdentifier: "{{APP_GROUP_ID}}"
     ) else {
       throw AddExpenseError.noSharedContainer
     }
-    return dir.appendingPathComponent("expenses.db")
+    return dir.appendingPathComponent("{{DATABASE_NAME}}")
   }
 
   /// User-created categories from the shared table. Checked before the
@@ -168,17 +168,17 @@ struct AddExpenseIntent: AppIntent {
   }
 
   static func tryAiCategory(note: String, customs: [(String, String, String)], db: OpaquePointer?) async -> (String?, String) {
-    let key = kvValue(db: db, key: "ai-key") ?? ""
-    guard kvValue(db: db, key: "ai-enabled") == "1",
+    let key = kvValue(db: db, key: "{{AI_KV_KEY}}") ?? ""
+    guard kvValue(db: db, key: "{{AI_KV_ENABLED}}") == "1",
       !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     else {
-      let hasFlag = kvValue(db: db, key: "ai-enabled") != nil
+      let hasFlag = kvValue(db: db, key: "{{AI_KV_ENABLED}}") != nil
       return (nil, hasFlag ? "nokey" : "off")
     }
     var criteria = defaultNames
     for (id, name, _) in customs { criteria[id] = name }
     let body: [String: Any] = [
-      "model": "typesafe/jev-1.13",
+      "model": "{{AI_MODEL}}",
       "state": "User spent money on: \(note)",
       "questions": [
         "category": [
@@ -194,7 +194,7 @@ struct AddExpenseIntent: AppIntent {
     sessionConfig.timeoutIntervalForRequest = 15
     sessionConfig.timeoutIntervalForResource = 20
     let session = URLSession(configuration: sessionConfig)
-    var request = URLRequest(url: URL(string: "https://openrouter.ai/api/alpha/decisions")!)
+    var request = URLRequest(url: URL(string: "{{AI_ENDPOINT}}")!)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -311,7 +311,7 @@ struct AddExpenseIntent: AppIntent {
     // Backup for throttled reloads: dirty flag the app consumes on next
     // foreground for one guaranteed refresh (see index.tsx load()).
     sqlite3_exec(db, "INSERT INTO app_kv (key, value) VALUES ('widget-dirty', '1') ON CONFLICT(key) DO UPDATE SET value = '1';", nil, nil, nil)
-    WidgetCenter.shared.reloadTimelines(ofKind: "MyExpWidget")
+    WidgetCenter.shared.reloadTimelines(ofKind: "{{WIDGET_KIND}}")
     let kindWord = finalKind == "income" ? "earned" : "spent"
     return .result(dialog: "Saved \(Int(amount)) rupees \(kindWord) for \(cleanNote.isEmpty ? finalCategory : cleanNote)\(aiTag).")
   }

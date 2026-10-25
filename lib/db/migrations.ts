@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from "expo-sqlite";
+import { database } from "../../config";
 
-const DATABASE_VERSION = 10;
+const DATABASE_VERSION = database.version;
 
 export async function migrateDbIfNeeded(db: SQLiteDatabase) {
   // The WidgetKit extension reads this same file with a plain

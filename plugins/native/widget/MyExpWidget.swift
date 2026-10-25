@@ -48,7 +48,7 @@ struct MonthProvider: TimelineProvider {
   private func readMonth() -> MonthEntry {
     let now = Date()
     let fallback = MonthEntry(date: now, spent: 0, slices: [])
-    guard let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.gagan987123.myexp") else {
+    guard let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "{{APP_GROUP_ID}}") else {
       return fallback
     }
     // Local-month boundaries as UTC ISO strings. The app stores
@@ -68,7 +68,7 @@ struct MonthProvider: TimelineProvider {
     iso.timeZone = TimeZone(secondsFromGMT: 0)
     let lower = iso.string(from: monthStart)
     let upper = iso.string(from: nextMonthStart)
-    let dbPath = dir.appendingPathComponent("expenses.db").path
+    let dbPath = dir.appendingPathComponent("{{DATABASE_NAME}}").path
     var db: OpaquePointer?
     // Shared DB runs in DELETE journal mode (see lib/db.ts) so a
     // readonly cross-process reader always sees committed writes.
@@ -192,7 +192,7 @@ struct MyExpWidgetView: View {
 }
 
 struct MyExpWidget: Widget {
-  let kind: String = "MyExpWidget"
+  let kind: String = "{{WIDGET_KIND}}"
 
   var body: some WidgetConfiguration {
     StaticConfiguration(kind: kind, provider: MonthProvider()) { entry in
