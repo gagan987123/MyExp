@@ -1,0 +1,334 @@
+import AppIntents
+import Foundation
+import SQLite3
+import WidgetKit
+
+/// "Hey Siri, log expense in MyExp" — saves DIRECTLY to the shared
+/// App Group SQLite file. The app stays closed; no JavaScript runs.
+/// Same table and rules as the React Native side (single source of truth).
+struct AddExpenseIntent: AppIntent {
+  static var title: LocalizedStringResource = "Add Expense"
+  static var description = IntentDescription(
+    "Adds an expense to MyExp.",
+    categoryName: "Finance"
+  )
+
+  @Parameter(title: "Expense", description: "The amount and what it was for, e.g. 200 petrol.")
+  var entry: String
+
+  static var parameterSummary: some ParameterSummary {
+    Summary("Log an expense") {
+      \.$entry
+    }
+  }
+
+  /// Splits "200 petrol" / "petrol 200" / "50,000 salary" / "2,00,000 flat"
+  /// into (amount, note). Digit groups keep their commas until parsed, so
+  /// Indian grouping ("50,000", "2,00,000") survives. Currency words
+  /// (rupees, rs, inr, ₹) are dropped from the note.
+  /// Returns nil when no number is present.
+  static func parseEntry(_ raw: String) -> (Double, String)? {
+    guard let regex = try? NSRegularExpression(pattern: "\\d[\\d,]*\\.?\\d*") else {
+      return nil
+    }
+    let nsRange = NSRange(raw.startIndex..., in: raw)
+    guard let match = regex.firstMatch(in: raw, range: nsRange),
+      let range = Range(match.range, in: raw)
+    else { return nil }
+    let digits = String(raw[range]).replacingOccurrences(of: ",", with: "")
+    guard let amount = Double(digits), amount.isFinite, amount > 0 else {
+      return nil
+    }
+    var note = String(raw.replacingCharacters(in: range, with: " "))
+    let noise: Set<String> = ["rupees", "rupee", "rs", "rs.", "inr", "₹"]
+    note = note
+      .split(separator: " ")
+      .map(String.init)
+      .filter { !noise.contains($0.lowercased().trimmingCharacters(in: .punctuationCharacters)) }
+      .joined(separator: " ")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    return (amount, note)
+  }
+
+  // Deterministic keyword rules (no AI) — mirrors matchCategory()
+  // in lib/service.ts. Keep the two lists in sync.
+  static func resolveCategory(note: String, hint: String?) -> String {
+    let ids = ["food", "transport", "petrol", "shopping", "bills", "entertainment", "health", "travel", "salary", "other"]
+    if let hint {
+      let key = hint.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+      if ids.contains(key) { return key }
+      for id in ids {
+        if id == key { return id }
+      }
+      let aliases: [String: String] = [
+        "gas": "petrol", "fuel": "petrol", "diesel": "petrol",
+        "cab": "transport", "taxi": "transport", "auto": "transport",
+        "bus": "transport", "metro": "transport", "train": "transport",
+        "flight": "travel", "hotel": "travel",
+        "movie": "entertainment", "movies": "entertainment",
+        "medicine": "health", "medical": "health", "doctor": "health",
+        "hospital": "health", "groceries": "food", "grocery": "food",
+        "restaurant": "food", "coffee": "food", "chai": "food",
+        "lunch": "food", "dinner": "food", "breakfast": "food",
+        "snacks": "food", "uber": "transport", "ola": "transport",
+        "electricity": "bills", "water": "bills", "rent": "bills",
+        "internet": "bills", "recharge": "bills", "mobile": "bills",
+        "clothes": "shopping", "clothing": "shopping", "shoes": "shopping",
+        "salary": "salary", "pay": "salary", "paycheck": "salary",
+        "income": "salary", "wages": "salary",
+      ]
+      if let hit = aliases[key] { return hit }
+    }
+    let text = note.lowercased()
+    let rules: [(String, String)] = [
+      ("petrol", "petrol"), ("diesel", "petrol"), ("fuel", "petrol"), ("gas", "petrol"),
+      ("uber", "transport"), ("ola", "transport"), ("cab", "transport"), ("taxi", "transport"),
+      ("auto", "transport"), ("bus", "transport"), ("metro", "transport"), ("train", "transport"),
+      ("flight", "travel"), ("hotel", "travel"),
+      ("movie", "entertainment"),
+      ("medicine", "health"), ("medical", "health"), ("doctor", "health"), ("hospital", "health"), ("pharmacy", "health"),
+      ("chai", "food"), ("coffee", "food"), ("lunch", "food"), ("dinner", "food"),
+      ("breakfast", "food"), ("snack", "food"), ("restaurant", "food"), ("grocery", "food"),
+      ("groceries", "food"), ("food", "food"), ("eat", "food"), ("meal", "food"),
+      ("bill", "bills"), ("electricity", "bills"), ("rent", "bills"), ("recharge", "bills"),
+      ("shop", "shopping"), ("clothes", "shopping"), ("shoe", "shopping"),
+      ("salary", "salary"), ("pay", "salary"), ("income", "salary"), ("wage", "salary"),
+    ]
+    for (keyword, category) in rules {
+      if text.contains(keyword) { return category }
+    }
+    return "other"
+  }
+
+  static func sharedDatabaseURL() throws -> URL {
+    guard let dir = FileManager.default.containerURL(
+      forSecurityApplicationGroupIdentifier: "group.com.gagan987123.myexp"
+    ) else {
+      throw AddExpenseError.noSharedContainer
+    }
+    return dir.appendingPathComponent("expenses.db")
+  }
+
+  /// User-created categories from the shared table. Checked before the
+  /// keyword rules so a "Chai" category beats the food rule for "chai".
+  /// Returns id + kind (customs can be income too).
+  static func fetchCustoms(db: OpaquePointer?) -> [(String, String, String)] {
+    var rows: [(String, String, String)] = []
+    let sql = "SELECT id, name, kind FROM categories;"
+    var stmt: OpaquePointer?
+    guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+      return rows
+    }
+    defer { sqlite3_finalize(stmt) }
+    while sqlite3_step(stmt) == SQLITE_ROW {
+      let id = String(cString: sqlite3_column_text(stmt, 0))
+      let name = String(cString: sqlite3_column_text(stmt, 1))
+      let kind = String(cString: sqlite3_column_text(stmt, 2))
+      rows.append((id, name, kind))
+    }
+    return rows
+  }
+
+  static func matchCustom(_ rows: [(String, String, String)], hint: String?, note: String) -> (String, String)? {
+    if let hint {
+      let key = hint.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+      if !key.isEmpty {
+        for (id, name, kind) in rows {
+          if id.lowercased() == key || name.lowercased() == key { return (id, kind) }
+        }
+      }
+    }
+    let text = note.lowercased()
+    for (id, name, kind) in rows {
+      let n = name.lowercased()
+      if n.count >= 3 && text.contains(n) { return (id, kind) }
+    }
+    return nil
+  }
+
+  static let defaultNames: [String: String] = [
+    "food": "Food", "transport": "Transport", "petrol": "Petrol",
+    "shopping": "Shopping", "bills": "Bills", "entertainment": "Entertainment",
+    "health": "Health", "travel": "Travel", "salary": "Salary", "other": "Other",
+  ]
+
+  /// AI categorization via Jev. Reads toggle + key from the shared folder,
+  /// 5s timeout, min 70% confidence. Any failure → nil (keyword rules win).
+  static func kvValue(db: OpaquePointer?, key: String) -> String? {
+    var stmt: OpaquePointer?
+    guard sqlite3_prepare_v2(db, "SELECT value FROM app_kv WHERE key = ?;", -1, &stmt, nil) == SQLITE_OK else {
+      return nil
+    }
+    defer { sqlite3_finalize(stmt) }
+    sqlite3_bind_text(stmt, 1, (key as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+    guard sqlite3_step(stmt) == SQLITE_ROW,
+      let raw = sqlite3_column_text(stmt, 0)
+    else { return nil }
+    return String(cString: raw)
+  }
+
+  static func tryAiCategory(note: String, customs: [(String, String, String)], db: OpaquePointer?) async -> (String?, String) {
+    let key = kvValue(db: db, key: "ai-key") ?? ""
+    guard kvValue(db: db, key: "ai-enabled") == "1",
+      !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    else {
+      let hasFlag = kvValue(db: db, key: "ai-enabled") != nil
+      return (nil, hasFlag ? "nokey" : "off")
+    }
+    var criteria = defaultNames
+    for (id, name, _) in customs { criteria[id] = name }
+    let body: [String: Any] = [
+      "model": "typesafe/jev-1.13",
+      "state": "User spent money on: \(note)",
+      "questions": [
+        "category": [
+          "type": "choice",
+          "instructions": "Which expense category fits best?",
+          "criteria": criteria,
+        ]
+      ],
+    ]
+    guard let payload = try? JSONSerialization.data(withJSONObject: body) else { return (nil, "badjson") }
+    let sessionConfig = URLSessionConfiguration.default
+    sessionConfig.waitsForConnectivity = true
+    sessionConfig.timeoutIntervalForRequest = 15
+    sessionConfig.timeoutIntervalForResource = 20
+    let session = URLSession(configuration: sessionConfig)
+    var request = URLRequest(url: URL(string: "https://openrouter.ai/api/alpha/decisions")!)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
+    request.setValue("Bearer \(key.trimmingCharacters(in: .whitespacesAndNewlines))", forHTTPHeaderField: "Authorization")
+    request.httpBody = payload
+    request.timeoutInterval = 15
+    guard let (data, response) = try? await session.data(for: request) else { return (nil, "netfail") }
+    guard let http = response as? HTTPURLResponse else { return (nil, "noresponse") }
+    guard http.statusCode == 200 else { return (nil, "http\(http.statusCode)") }
+    guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let answers = json["answers"] as? [String: Any],
+      let pick = answers["category"] as? [String: Any],
+      let choice = pick["choice"] as? String,
+      criteria[choice] != nil
+    else { return (nil, "badanswer") }
+    let confidence = (pick["confidence"] as? Double) ?? 0
+    if confidence < 0.7 { return (nil, "lowconf\(Int(confidence * 100))") }
+    return (choice, "AI")
+  }
+
+  @MainActor
+  func perform() async throws -> some IntentResult {
+    guard let (amount, note) = Self.parseEntry(entry) else {
+      throw AddExpenseError.invalidAmount
+    }
+    var finalCategory = Self.resolveCategory(note: note, hint: nil)
+    var aiTag = ""
+    // Millis + UTC, exactly like the app's new Date().toISOString(),
+    // so the widget's month-range query sees Siri rows identically.
+    let isoFormatter = ISO8601DateFormatter()
+    isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    isoFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+    let now = isoFormatter.string(from: Date())
+    let id = UUID().uuidString
+    let cleanNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+    var finalKind = finalCategory == "salary" ? "income" : "expense"
+
+    let url = try Self.sharedDatabaseURL()
+    var db: OpaquePointer?
+    guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
+      throw AddExpenseError.cannotOpenDatabase
+    }
+    defer { sqlite3_close(db) }
+    sqlite3_busy_timeout(db, 5000)
+    let customs = Self.fetchCustoms(db: db)
+    // TEMP DIAGNOSTIC: stamp the decision path into the note so it is
+    // visible in the app. Remove after the Siri-AI cause is confirmed.
+    if let custom = Self.matchCustom(customs, hint: nil, note: note) {
+      finalCategory = custom.0
+      finalKind = custom.1 == "income" ? "income" : "expense"
+    } else {
+      let aiRes = await Self.tryAiCategory(note: note, customs: customs, db: db)
+      if let aiPick = aiRes.0 {
+        finalCategory = aiPick
+        if aiPick == "salary" {
+          finalKind = "income"
+        } else {
+          for (id, _, kind) in customs where id == aiPick {
+            finalKind = kind == "income" ? "income" : "expense"
+          }
+        }
+        aiTag = " (AI)"
+      }
+    }
+    let create = """
+      CREATE TABLE IF NOT EXISTS expenses (
+        id TEXT PRIMARY KEY NOT NULL,
+        amount REAL NOT NULL,
+        category TEXT NOT NULL,
+        note TEXT,
+        date TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'expense'
+      );
+      CREATE TABLE IF NOT EXISTS categories (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        icon TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'expense',
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS app_kv (
+        key TEXT PRIMARY KEY NOT NULL,
+        value TEXT NOT NULL
+      );
+      """
+    guard sqlite3_exec(db, create, nil, nil, nil) == SQLITE_OK else {
+      throw AddExpenseError.writeFailed
+    }
+    let insert = "INSERT INTO expenses (id, amount, category, note, date, created_at, kind) VALUES (?, ?, ?, ?, ?, ?, ?);"
+    var stmt: OpaquePointer?
+    guard sqlite3_prepare_v2(db, insert, -1, &stmt, nil) == SQLITE_OK else {
+      throw AddExpenseError.writeFailed
+    }
+    defer { sqlite3_finalize(stmt) }
+    sqlite3_bind_text(stmt, 1, (id as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+    sqlite3_bind_double(stmt, 2, amount)
+    sqlite3_bind_text(stmt, 3, (finalCategory as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+    if cleanNote.isEmpty {
+      sqlite3_bind_null(stmt, 4)
+    } else {
+      sqlite3_bind_text(stmt, 4, (cleanNote as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+    }
+    sqlite3_bind_text(stmt, 5, (now as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+    sqlite3_bind_text(stmt, 6, (now as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+    sqlite3_bind_text(stmt, 7, (finalKind as NSString).utf8String, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+    guard sqlite3_step(stmt) == SQLITE_DONE else {
+      throw AddExpenseError.writeFailed
+    }
+    // Flush any WAL frames into the main file so the readonly widget
+    // reader sees this row, then ask WidgetKit to refresh now.
+    sqlite3_exec(db, "PRAGMA journal_mode = DELETE;", nil, nil, nil)
+    sqlite3_exec(db, "PRAGMA wal_checkpoint(TRUNCATE);", nil, nil, nil)
+    // Backup for throttled reloads: dirty flag the app consumes on next
+    // foreground for one guaranteed refresh (see index.tsx load()).
+    sqlite3_exec(db, "INSERT INTO app_kv (key, value) VALUES ('widget-dirty', '1') ON CONFLICT(key) DO UPDATE SET value = '1';", nil, nil, nil)
+    WidgetCenter.shared.reloadTimelines(ofKind: "MyExpWidget")
+    let kindWord = finalKind == "income" ? "earned" : "spent"
+    return .result(dialog: "Saved \(Int(amount)) rupees \(kindWord) for \(cleanNote.isEmpty ? finalCategory : cleanNote)\(aiTag).")
+  }
+}
+
+enum AddExpenseError: Error, CustomLocalizedStringResourceConvertible {
+  case noSharedContainer
+  case cannotOpenDatabase
+  case writeFailed
+  case invalidAmount
+
+  var localizedStringResource: LocalizedStringResource {
+    switch self {
+    case .noSharedContainer: return "MyExp shared storage isn't available."
+    case .cannotOpenDatabase: return "Couldn't open the expense database."
+    case .writeFailed: return "Couldn't save the expense."
+    case .invalidAmount: return "Say it with an amount, like: 200 petrol."
+    }
+  }
+}

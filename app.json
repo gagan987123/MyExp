@@ -62,7 +62,15 @@
       "./plugins/withWidget",
       "./plugins/withShareExtension",
       "expo-secure-store",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "usePrecompiledModules": false
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
